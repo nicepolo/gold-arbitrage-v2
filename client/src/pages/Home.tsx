@@ -478,11 +478,23 @@ export default function Home() {
                   )}
                 </div>
 
-                {/* Exchange rate with C2C */}
+                {/* Exchange rate with quick fetch */}
                 <div>
-                  <Label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                    {t(lang, "exchangeRate")}
-                  </Label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <Label className="text-xs font-medium text-muted-foreground">
+                      {t(lang, "exchangeRate")}
+                    </Label>
+                    <button
+                      onClick={handleAutoRate}
+                      disabled={isFetchingRate || isC2CFetching}
+                      className="flex items-center gap-1 text-xs font-medium transition-colors disabled:opacity-50"
+                      style={{ color: "oklch(0.55 0.17 158)" }}
+                    >
+                      {(isFetchingRate || isC2CFetching)
+                        ? <><RefreshCw className="w-3 h-3 animate-spin" />取得中...</>
+                        : <><Zap className="w-3 h-3" />取得參考匯率</>}
+                    </button>
+                  </div>
                   <Input
                     type="number"
                     value={rateVndUsd}
@@ -490,115 +502,6 @@ export default function Home() {
                     placeholder={t(lang, "ratePlaceholder")}
                     className="bg-input border-border"
                   />
-
-                  {/* C2C 設定面板 */}
-                  <div className="mt-2 rounded-xl border border-border overflow-hidden">
-                    <button
-                      onClick={() => setShowC2CPanel(!showC2CPanel)}
-                      className="w-full flex items-center justify-between px-3 py-2 bg-secondary hover:bg-secondary/80 transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <ListOrdered className="w-3.5 h-3.5" style={{ color: "oklch(0.55 0.17 158)" }} />
-                        <span className="text-xs font-medium text-foreground">報價設定</span>
-                        <span className="text-xs text-muted-foreground">
-                          第 {c2cRank} 順位 {c2cOffset >= 0 ? `+${c2cOffset}` : c2cOffset}
-                        </span>
-                      </div>
-                      {showC2CPanel
-                        ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" />
-                        : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
-                    </button>
-
-                    {showC2CPanel && (
-                      <div className="p-3 bg-card space-y-3">
-                        {/* Rank & Offset controls */}
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <Label className="text-xs text-muted-foreground mb-1 block">順位（第幾筆）</Label>
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => setC2cRank(r => Math.max(1, r - 1))}
-                                className="w-7 h-7 rounded-lg border border-border flex items-center justify-center hover:bg-secondary transition-colors"
-                              ><Minus className="w-3 h-3" /></button>
-                              <span className="flex-1 text-center text-sm font-bold" style={{ color: "oklch(0.45 0.17 158)" }}>
-                                #{c2cRank}
-                              </span>
-                              <button
-                                onClick={() => setC2cRank(r => Math.min(10, r + 1))}
-                                className="w-7 h-7 rounded-lg border border-border flex items-center justify-center hover:bg-secondary transition-colors"
-                              ><Plus className="w-3 h-3" /></button>
-                            </div>
-                          </div>
-                          <div>
-                            <Label className="text-xs text-muted-foreground mb-1 block">加減點數（VND）</Label>
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => setC2cOffset(o => o - 10)}
-                                className="w-7 h-7 rounded-lg border border-border flex items-center justify-center hover:bg-secondary transition-colors"
-                              ><Minus className="w-3 h-3" /></button>
-                              <span className="flex-1 text-center text-sm font-bold" style={{ color: "oklch(0.45 0.17 158)" }}>
-                                {c2cOffset >= 0 ? `+${c2cOffset}` : c2cOffset}
-                              </span>
-                              <button
-                                onClick={() => setC2cOffset(o => o + 10)}
-                                className="w-7 h-7 rounded-lg border border-border flex items-center justify-center hover:bg-secondary transition-colors"
-                              ><Plus className="w-3 h-3" /></button>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* C2C listings table */}
-                        {c2cData?.listings && c2cData.listings.length > 0 && (
-                          <div>
-                            <p className="text-xs text-muted-foreground mb-1.5 font-medium">即時報價（USDT/VND 賣單）</p>
-                            <div className="space-y-1">
-                              {c2cData.listings.slice(0, 7).map((item) => (
-                                <div
-                                  key={item.rank}
-                                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
-                                    item.rank === c2cData.targetRank
-                                      ? "text-white font-semibold"
-                                      : "bg-secondary/60 text-muted-foreground"
-                                  }`}
-                                  style={item.rank === c2cData.targetRank ? {
-                                    background: "linear-gradient(135deg, oklch(0.60 0.17 158), oklch(0.50 0.19 170))"
-                                  } : {}}
-                                >
-                                  <span className="w-5 font-mono">#{item.rank}</span>
-                                  <span className="font-bold font-mono">{item.price.toLocaleString()}</span>
-                                  <span className="truncate max-w-[80px] text-right opacity-75">{item.nickName}</span>
-                                  <span className="opacity-60">{item.available.toFixed(0)} U</span>
-                                </div>
-                              ))}
-                            </div>
-                            {c2cData.finalRate && (
-                              <div className="mt-2 flex items-center justify-between px-2.5 py-2 rounded-lg border"
-                                style={{ borderColor: "oklch(0.60 0.17 158 / 0.3)", background: "oklch(0.60 0.17 158 / 0.06)" }}>
-                                <span className="text-xs font-medium" style={{ color: "oklch(0.45 0.17 158)" }}>
-                                  第{c2cRank}順位 {c2cData.baseRate?.toLocaleString()} {c2cOffset >= 0 ? `+${c2cOffset}` : c2cOffset}
-                                </span>
-                                <span className="text-sm font-bold" style={{ color: "oklch(0.40 0.17 158)" }}>
-                                  = {Math.round(c2cData.finalRate).toLocaleString()}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        <Button
-                          size="sm"
-                          onClick={handleAutoRate}
-                          disabled={isFetchingRate || isC2CFetching}
-                          className="w-full h-8 text-xs text-white rounded-lg border-0"
-                          style={{ background: "linear-gradient(135deg, oklch(0.60 0.17 158), oklch(0.50 0.19 170))" }}
-                        >
-                          {(isFetchingRate || isC2CFetching)
-                            ? <><RefreshCw className="w-3 h-3 mr-1.5 animate-spin" />取得中...</>
-                            : <><Zap className="w-3 h-3 mr-1.5" />取得報價</>}
-                        </Button>
-                      </div>
-                    )}
-                  </div>
                 </div>
 
                 {/* Referral fee input */}
