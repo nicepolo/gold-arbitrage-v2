@@ -67,6 +67,170 @@ export const appRouter = router({
   }),
 
   gold: router({
+    // 取得幣安 C2C P2P USDT/VND 賣單報價
+    getBinanceC2CRate: publicProcedure
+      .input(z.object({
+        rank: z.number().int().min(1).max(20).default(5),  // 第幾順位
+        offset: z.number().default(50),                    // 加減點數
+        rows: z.number().int().min(5).max(20).default(10), // 取幾筆
+      }))
+      .query(async ({ input }) => {
+        try {
+          const res = await fetch(
+            "https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Accept-Encoding": "identity",
+                "User-Agent": "Mozilla/5.0",
+              },
+              body: JSON.stringify({
+                fiat: "VND",
+                page: 1,
+                rows: Math.max(input.rows, input.rank + 2),
+                tradeType: "SELL",
+                asset: "USDT",
+                countries: [],
+                proMerchantAds: false,
+                shieldMerchantAds: false,
+                filterType: "all",
+                periods: [],
+                additionalKycVerifyFilter: 0,
+                publisherType: null,
+                payTypes: [],
+                classifies: ["mass", "profession", "fiat_trade"],
+              }),
+              signal: AbortSignal.timeout(8000),
+            }
+          );
+          if (!res.ok) throw new Error(`Binance API error: ${res.status}`);
+          const data = await res.json() as {
+            data: Array<{
+              adv: { price: string; surplusAmount: string; minSingleTransAmount: string; maxSingleTransAmount: string };
+              advertiser: { nickName: string; monthOrderCount: number; monthFinishRate: number };
+            }>;
+          };
+
+          const listings = (data.data ?? []).map((item, i) => ({
+            rank: i + 1,
+            price: parseFloat(item.adv.price),
+            nickName: item.advertiser.nickName,
+            available: parseFloat(item.adv.surplusAmount),
+            minAmount: parseFloat(item.adv.minSingleTransAmount),
+            maxAmount: parseFloat(item.adv.maxSingleTransAmount),
+            monthOrders: item.advertiser.monthOrderCount,
+            finishRate: item.advertiser.monthFinishRate,
+          }));
+
+          // 第N順位（1-based，過濾掉第1筆異常低價）
+          // 從第2筆開始取，因為第1筆通常是異常低價廣告
+          const normalListings = listings.filter(l => {
+            if (listings.length > 1) {
+              const secondPrice = listings[1]?.price ?? 0;
+              return l.price >= secondPrice * 0.99; // 過濾偏離超過1%的異常價格
+            }
+            return true;
+          });
+
+          const targetIdx = Math.min(input.rank - 1, normalListings.length - 1);
+          const targetListing = normalListings[targetIdx];
+          const baseRate = targetListing?.price ?? 0;
+          const finalRate = baseRate + input.offset;
+
+          return {
+            listings: normalListings.slice(0, Math.min(10, normalListings.length)),
+            targetRank: input.rank,
+            targetListing,
+            baseRate,
+            offset: input.offset,
+            finalRate,
+            source: "binance-c2c",
+            updatedAt: new Date(),
+          };
+        } catch (err) {
+          return {
+            listings: [],
+            targetRank: input.rank,
+            targetListing: null,
+            baseRate: null,
+            offset: input.offset,
+            finalRate: null,
+            source: "error",
+            error: String(err),
+            updatedAt: new Date(),
+          };
+        }
+      }),
+
+    // 取得倫敦金現貨價格 (USD/oz)
+    getGoldSpotPrice: publicProcedure.query(async () => {
+      // 主要： stooq.com XAU/USD 現貨
+      try {
+        const res = await fetch(
+          "https://stooq.com/q/l/?s=xauusd&f=sd2t2ohlcv&h&e=json",
+          {
+            headers: { "Accept-Encoding": "identity", "User-Agent": "Mozilla/5.0" },
+            signal: AbortSignal.timeout(6000),
+          }
+        );
+        if (!res.ok) throw new Error(`stooq error: ${res.status}`);
+        const raw = await res.text();
+        // stooq 回傳格式有時 volume 為空，需要修復 JSON
+        const fixed = raw.replace(/,\s*}/g, "}").replace(/,\s*]/g, "]");
+        const data = JSON.parse(fixed) as { symbols: Array<{ close: number; date: string; time: string }> };
+        const item = data.symbols?.[0];
+        if (!item?.close || item.close <= 0) throw new Error("Invalid price");
+        return {
+          price: item.close,
+          source: "stooq-xauusd",
+          note: "XAU/USD 現貨",
+          updatedAt: new Date(),
+        };
+      } catch (e1) {
+        // 備用： Yahoo Finance COMEX 黃金期貨 GC=F
+        try {
+          const res2 = await fetch(
+            "https://query1.finance.yahoo.com/v8/finance/chart/GC%3DF?interval=1d&range=1d",
+            {
+              headers: { "Accept-Encoding": "identity", "User-Agent": "Mozilla/5.0" },
+              signal: AbortSignal.timeout(6000),
+            }
+          );
+          if (!res2.ok) throw new Error(`Yahoo error: ${res2.status}`);
+          const data2 = await res2.json() as { chart: { result: Array<{ meta: { regularMarketPrice: number } }> } };
+          const price2 = data2.chart?.result?.[0]?.meta?.regularMarketPrice;
+          if (!price2 || price2 <= 0) throw new Error("Invalid Yahoo price");
+          return {
+            price: price2,
+            source: "yahoo-gcf",
+            note: "COMEX 黃金期貨",
+            updatedAt: new Date(),
+          };
+        } catch (e2) {
+          // 第三備用： 幣安 PAXG/USDT
+          try {
+            const res3 = await fetch(
+              "https://api.binance.com/api/v3/ticker/price?symbol=PAXGUSDT",
+              { signal: AbortSignal.timeout(5000) }
+            );
+            if (!res3.ok) throw new Error(`Binance error: ${res3.status}`);
+            const data3 = await res3.json() as { price: string };
+            const price3 = parseFloat(data3.price);
+            if (!price3 || price3 <= 0) throw new Error("Invalid PAXG price");
+            return {
+              price: price3,
+              source: "binance-paxg",
+              note: "PAXG/USDT (幣安黃金代幣)",
+              updatedAt: new Date(),
+            };
+          } catch (e3) {
+            return { price: null, source: "error", note: "所有 API 均失敗", updatedAt: new Date() };
+          }
+        }
+      }
+    }),
+
     // 取得即時 VND/USD 匯率
     getExchangeRate: publicProcedure.query(async () => {
       try {

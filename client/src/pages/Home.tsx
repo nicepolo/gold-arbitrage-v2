@@ -26,6 +26,9 @@ import {
   Car,
   Lock,
   UserCheck,
+  ListOrdered,
+  Plus,
+  Minus,
 } from "lucide-react";
 
 const WEIGHT_PRESETS = [200, 280, 300];
@@ -85,17 +88,75 @@ export default function Home() {
   const [result, setResult] = useState<CalcResult | null>(null);
   const [isCalcDone, setIsCalcDone] = useState(false);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
+  const [isFetchingGold, setIsFetchingGold] = useState(false);
+  // C2C 設定
+  const [c2cRank, setC2cRank] = useState(5);      // 第幾順位
+  const [c2cOffset, setC2cOffset] = useState(50); // 加減點數
+  const [showC2CPanel, setShowC2CPanel] = useState(false);
 
   const sessionId = useMemo(() => getSessionId(), []);
   const utils = trpc.useUtils();
 
-  // 即時匯率查詢
+  // 幣安 C2C P2P 匯率查詢
+  const {
+    data: c2cData,
+    refetch: refetchC2C,
+    isFetching: isC2CFetching,
+  } = trpc.gold.getBinanceC2CRate.useQuery(
+    { rank: c2cRank, offset: c2cOffset, rows: 10 },
+    { enabled: false, retry: false }
+  );
+
+  // 倫敦金現貨價格查詢
+  const {
+    data: goldSpotData,
+    refetch: refetchGoldSpot,
+    isFetching: isGoldSpotFetching,
+  } = trpc.gold.getGoldSpotPrice.useQuery(
+    undefined,
+    { enabled: false, retry: false }
+  );
+
+  useEffect(() => {
+    if (goldSpotData?.price) {
+      // 保留兩位小數
+      setBuyUsdOz(goldSpotData.price.toFixed(2));
+      toast.success(
+        `倫敦金 ${goldSpotData.note ?? ''} ${goldSpotData.price.toFixed(2)} USD/oz`
+      );
+      setIsFetchingGold(false);
+    } else if (goldSpotData?.source === 'error') {
+      toast.error('倫敦金價格取得失敗，請手動輸入');
+      setIsFetchingGold(false);
+    }
+  }, [goldSpotData]);
+
+  const handleFetchGoldSpot = async () => {
+    setIsFetchingGold(true);
+    await refetchGoldSpot();
+  };
+
+  // 當 C2C 資料更新時自動填入
+  useEffect(() => {
+    if (c2cData?.finalRate) {
+      setRateVndUsd(Math.round(c2cData.finalRate).toString());
+      setShowC2CPanel(true);
+      toast.success(
+        `幣安 C2C 第${c2cData.targetRank}順位 ${c2cData.baseRate?.toLocaleString()} + ${c2cData.offset} = ${Math.round(c2cData.finalRate).toLocaleString()}`
+      );
+      setIsFetchingRate(false);
+    } else if (c2cData?.source === "error") {
+      toast.error("幣安 C2C API 取得失敗，請手動輸入匯率");
+      setIsFetchingRate(false);
+    }
+  }, [c2cData]);
+
+  // 備用：一般匯率查詢
   const { data: rateData, refetch: refetchRate } = trpc.gold.getExchangeRate.useQuery(
     undefined,
     { enabled: false, retry: false }
   );
 
-  // 當匯率資料更新時自動填入
   useEffect(() => {
     if (rateData?.rate) {
       setRateVndUsd(Math.round(rateData.rate).toString());
@@ -109,7 +170,7 @@ export default function Home() {
 
   const handleAutoRate = async () => {
     setIsFetchingRate(true);
-    await refetchRate();
+    await refetchC2C();
   };
 
   const calcMutation = trpc.gold.calculate.useMutation({
@@ -314,9 +375,21 @@ export default function Home() {
 
                 {/* Buy price */}
                 <div>
-                  <Label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                    {t(lang, "buyPrice")}
-                  </Label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <Label className="text-xs font-medium text-muted-foreground">
+                      {t(lang, "buyPrice")}
+                    </Label>
+                    <button
+                      onClick={handleFetchGoldSpot}
+                      disabled={isFetchingGold || isGoldSpotFetching}
+                      className="flex items-center gap-1 text-xs font-medium transition-colors disabled:opacity-50"
+                      style={{ color: "oklch(0.55 0.17 158)" }}
+                    >
+                      {(isFetchingGold || isGoldSpotFetching)
+                        ? <><RefreshCw className="w-3 h-3 animate-spin" />取得中...</>
+                        : <><Coins className="w-3 h-3" />倫敦金現貨</>}
+                    </button>
+                  </div>
                   <Input
                     type="number"
                     value={buyUsdOz}
@@ -324,6 +397,12 @@ export default function Home() {
                     placeholder={t(lang, "buyPricePlaceholder")}
                     className="bg-input border-border"
                   />
+                  {goldSpotData?.price && goldSpotData.source !== 'error' && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      來源: {goldSpotData.note} &nbsp;· 
+                      <span style={{ color: "oklch(0.45 0.17 158)" }}>{goldSpotData.price.toFixed(2)} USD/oz</span>
+                    </p>
+                  )}
                 </div>
 
                 {/* Sell price */}
@@ -345,7 +424,7 @@ export default function Home() {
                   )}
                 </div>
 
-                {/* Exchange rate with auto-fetch */}
+                {/* Exchange rate with Binance C2C */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <Label className="text-xs font-medium text-muted-foreground">
@@ -353,12 +432,13 @@ export default function Home() {
                     </Label>
                     <button
                       onClick={handleAutoRate}
-                      disabled={isFetchingRate}
+                      disabled={isFetchingRate || isC2CFetching}
                       className="flex items-center gap-1 text-xs font-medium transition-colors disabled:opacity-50"
                       style={{ color: "oklch(0.55 0.17 158)" }}
                     >
-                      <Zap className="w-3 h-3" />
-                      {isFetchingRate ? t(lang, "autoRateLoading") : t(lang, "autoRate")}
+                      {(isFetchingRate || isC2CFetching)
+                        ? <><RefreshCw className="w-3 h-3 animate-spin" />取得中...</>
+                        : <><Zap className="w-3 h-3" />幣安 C2C 取得</>}
                     </button>
                   </div>
                   <Input
@@ -368,6 +448,115 @@ export default function Home() {
                     placeholder={t(lang, "ratePlaceholder")}
                     className="bg-input border-border"
                   />
+
+                  {/* C2C 設定面板 */}
+                  <div className="mt-2 rounded-xl border border-border overflow-hidden">
+                    <button
+                      onClick={() => setShowC2CPanel(!showC2CPanel)}
+                      className="w-full flex items-center justify-between px-3 py-2 bg-secondary hover:bg-secondary/80 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <ListOrdered className="w-3.5 h-3.5" style={{ color: "oklch(0.55 0.17 158)" }} />
+                        <span className="text-xs font-medium text-foreground">幣安 C2C 設定</span>
+                        <span className="text-xs text-muted-foreground">
+                          第 {c2cRank} 順位 {c2cOffset >= 0 ? `+${c2cOffset}` : c2cOffset}
+                        </span>
+                      </div>
+                      {showC2CPanel
+                        ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" />
+                        : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
+                    </button>
+
+                    {showC2CPanel && (
+                      <div className="p-3 bg-card space-y-3">
+                        {/* Rank & Offset controls */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-xs text-muted-foreground mb-1 block">順位（第幾筆）</Label>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => setC2cRank(r => Math.max(1, r - 1))}
+                                className="w-7 h-7 rounded-lg border border-border flex items-center justify-center hover:bg-secondary transition-colors"
+                              ><Minus className="w-3 h-3" /></button>
+                              <span className="flex-1 text-center text-sm font-bold" style={{ color: "oklch(0.45 0.17 158)" }}>
+                                #{c2cRank}
+                              </span>
+                              <button
+                                onClick={() => setC2cRank(r => Math.min(10, r + 1))}
+                                className="w-7 h-7 rounded-lg border border-border flex items-center justify-center hover:bg-secondary transition-colors"
+                              ><Plus className="w-3 h-3" /></button>
+                            </div>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground mb-1 block">加減點數（VND）</Label>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => setC2cOffset(o => o - 10)}
+                                className="w-7 h-7 rounded-lg border border-border flex items-center justify-center hover:bg-secondary transition-colors"
+                              ><Minus className="w-3 h-3" /></button>
+                              <span className="flex-1 text-center text-sm font-bold" style={{ color: "oklch(0.45 0.17 158)" }}>
+                                {c2cOffset >= 0 ? `+${c2cOffset}` : c2cOffset}
+                              </span>
+                              <button
+                                onClick={() => setC2cOffset(o => o + 10)}
+                                className="w-7 h-7 rounded-lg border border-border flex items-center justify-center hover:bg-secondary transition-colors"
+                              ><Plus className="w-3 h-3" /></button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* C2C listings table */}
+                        {c2cData?.listings && c2cData.listings.length > 0 && (
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-1.5 font-medium">即時報價（USDT/VND 賣單）</p>
+                            <div className="space-y-1">
+                              {c2cData.listings.slice(0, 7).map((item) => (
+                                <div
+                                  key={item.rank}
+                                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                                    item.rank === c2cData.targetRank
+                                      ? "text-white font-semibold"
+                                      : "bg-secondary/60 text-muted-foreground"
+                                  }`}
+                                  style={item.rank === c2cData.targetRank ? {
+                                    background: "linear-gradient(135deg, oklch(0.60 0.17 158), oklch(0.50 0.19 170))"
+                                  } : {}}
+                                >
+                                  <span className="w-5 font-mono">#{item.rank}</span>
+                                  <span className="font-bold font-mono">{item.price.toLocaleString()}</span>
+                                  <span className="truncate max-w-[80px] text-right opacity-75">{item.nickName}</span>
+                                  <span className="opacity-60">{item.available.toFixed(0)} U</span>
+                                </div>
+                              ))}
+                            </div>
+                            {c2cData.finalRate && (
+                              <div className="mt-2 flex items-center justify-between px-2.5 py-2 rounded-lg border"
+                                style={{ borderColor: "oklch(0.60 0.17 158 / 0.3)", background: "oklch(0.60 0.17 158 / 0.06)" }}>
+                                <span className="text-xs font-medium" style={{ color: "oklch(0.45 0.17 158)" }}>
+                                  第{c2cRank}順位 {c2cData.baseRate?.toLocaleString()} {c2cOffset >= 0 ? `+${c2cOffset}` : c2cOffset}
+                                </span>
+                                <span className="text-sm font-bold" style={{ color: "oklch(0.40 0.17 158)" }}>
+                                  = {Math.round(c2cData.finalRate).toLocaleString()}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <Button
+                          size="sm"
+                          onClick={handleAutoRate}
+                          disabled={isFetchingRate || isC2CFetching}
+                          className="w-full h-8 text-xs text-white rounded-lg border-0"
+                          style={{ background: "linear-gradient(135deg, oklch(0.60 0.17 158), oklch(0.50 0.19 170))" }}
+                        >
+                          {(isFetchingRate || isC2CFetching)
+                            ? <><RefreshCw className="w-3 h-3 mr-1.5 animate-spin" />取得中...</>
+                            : <><Zap className="w-3 h-3 mr-1.5" />取得幣安 C2C 報價</>}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Expense breakdown section */}
