@@ -99,6 +99,8 @@ export default function Home() {
   const [showC2CPanel, setShowC2CPanel] = useState(false);
   // 介紹費百分比（從淨利中扣除）
   const [referralPct, setReferralPct] = useState(0);
+  // 介紹人名稱
+  const [referralName, setReferralName] = useState("");
 
   const sessionId = useMemo(() => getSessionId(), []);
   const utils = trpc.useUtils();
@@ -279,9 +281,10 @@ export default function Home() {
       `毛利: $${(result.totalRevenueUsd - result.totalCostUsd).toFixed(2)} USD`,
       `淨利: $${result.netProfitUsd.toFixed(2)} USD`,
       ...(referralPct > 0 ? [
-        `介紹費 (${referralPct}%): $${result.referralFee.toFixed(2)} USD`,
+        `介紹費 (${referralName ? referralName + " " : ""}${referralPct}%): $${result.referralFee.toFixed(2)} USD`,
         `實際淨利: $${result.actualNetProfit.toFixed(2)} USD`,
       ] : []),
+      ...(referralName && referralPct === 0 ? [`介紹人: ${referralName}`] : []),
       `保本賣價: ${result.breakEvenSellVndWan.toFixed(2)} 萬VND/錢`,
       `ROI: ${result.actualRoi.toFixed(2)}%`,
       "",
@@ -464,13 +467,25 @@ export default function Home() {
                   <Label className="text-xs font-medium text-muted-foreground mb-1.5 block">
                     {t(lang, "sellPrice")}
                   </Label>
-                  <Input
-                    type="number"
-                    value={sellVndWan}
-                    onChange={(e) => setSellVndWan(e.target.value)}
-                    placeholder={t(lang, "sellPricePlaceholder")}
-                    className="bg-input border-border"
-                  />
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setSellVndWan(v => String(Math.max(0, (parseFloat(v) || 0) - 1)))}
+                      className="w-8 h-10 rounded-lg border border-border flex items-center justify-center hover:bg-secondary transition-colors flex-shrink-0"
+                      title="-1 萬 VND"
+                    ><Minus className="w-3.5 h-3.5 text-muted-foreground" /></button>
+                    <Input
+                      type="number"
+                      value={sellVndWan}
+                      onChange={(e) => setSellVndWan(e.target.value)}
+                      placeholder={t(lang, "sellPricePlaceholder")}
+                      className="bg-input border-border flex-1"
+                    />
+                    <button
+                      onClick={() => setSellVndWan(v => String((parseFloat(v) || 0) + 1))}
+                      className="w-8 h-10 rounded-lg border border-border flex items-center justify-center hover:bg-secondary transition-colors flex-shrink-0"
+                      title="+1 萬 VND"
+                    ><Plus className="w-3.5 h-3.5 text-muted-foreground" /></button>
+                  </div>
                   {parseFloat(sellVndWan) > 0 && (
                     <p className="text-xs text-muted-foreground mt-1">
                       {t(lang, "currentRate")}: {vndPreview}/{t(lang, "chiUnit")}
@@ -484,16 +499,23 @@ export default function Home() {
                     <Label className="text-xs font-medium text-muted-foreground">
                       {t(lang, "exchangeRate")}
                     </Label>
-                    <button
-                      onClick={handleAutoRate}
-                      disabled={isFetchingRate || isC2CFetching}
-                      className="flex items-center gap-1 text-xs font-medium transition-colors disabled:opacity-50"
-                      style={{ color: "oklch(0.55 0.17 158)" }}
-                    >
-                      {(isFetchingRate || isC2CFetching)
-                        ? <><RefreshCw className="w-3 h-3 animate-spin" />取得中...</>
-                        : <><Zap className="w-3 h-3" />取得參考匯率</>}
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={handleAutoRate}
+                        disabled={isFetchingRate || isC2CFetching}
+                        className="flex items-center gap-1 text-xs font-medium transition-colors disabled:opacity-50"
+                        style={{ color: "oklch(0.55 0.17 158)" }}
+                        title="參考匯率基於市場行情，實際以換匯為準"
+                      >
+                        {(isFetchingRate || isC2CFetching)
+                          ? <><RefreshCw className="w-3 h-3 animate-spin" />取得中...</>
+                          : <><Zap className="w-3 h-3" />取得參考匯率</>}
+                      </button>
+                      <span
+                        className="w-4 h-4 rounded-full border border-muted-foreground/40 flex items-center justify-center text-[10px] text-muted-foreground cursor-help flex-shrink-0"
+                        title="參考匯率基於市場行情，實際以換匯為準"
+                      >?</span>
+                    </div>
                   </div>
                   <Input
                     type="number"
@@ -509,16 +531,23 @@ export default function Home() {
                   <div className="flex items-center gap-2 mb-1.5">
                     <UserCheck className="w-3.5 h-3.5" style={{ color: "oklch(0.55 0.17 158)" }} />
                     <Label className="text-xs font-medium text-muted-foreground">
-                      {lang === "zh" ? "介紹費百分比 (%)" : lang === "en" ? "Referral Fee (%)" : "Phí giới thiệu (%)"}
+                      {lang === "zh" ? "介紹費" : lang === "en" ? "Referral Fee" : "Phí giới thiệu"}
                     </Label>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-center">
+                    <Input
+                      type="text"
+                      value={referralName}
+                      onChange={(e) => setReferralName(e.target.value)}
+                      placeholder={lang === "zh" ? "介紹人（選填）" : lang === "en" ? "Referrer name" : "Tên người giới thiệu"}
+                      className="bg-input border-border text-xs"
+                    />
                     <Input
                       type="number"
                       value={referralPct || ""}
                       onChange={(e) => setReferralPct(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
                       placeholder="0"
-                      className="bg-input border-border"
+                      className="bg-input border-border w-16 text-center"
                       min={0}
                       max={100}
                     />
