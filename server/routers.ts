@@ -286,9 +286,12 @@ export const appRouter = router({
           totalExpenseUsd,
         });
 
-        // 介紹費計算（從淨利中扣除）
+        // 介紹費計算：基準為「淨利（只扣機票+通道費）」
+        // 不含住宿、交通、餐飲（這些為個人生活成本，不納入商業成本）
         const referralPct = input.referralPct ?? 0;
-        const referralFee = result.netProfitUsd * (referralPct / 100);
+        const referralCoreExpense = expBreakdown.ticket + expBreakdown.channel; // 機票 + 通道費
+        const referralBaseProfit = result.totalRevenueUsd - result.totalCostUsd - referralCoreExpense;
+        const referralFee = referralBaseProfit * (referralPct / 100);
         const actualNetProfit = result.netProfitUsd - referralFee;
         const actualRoi = (actualNetProfit / result.totalCostUsd) * 100;
 
@@ -335,6 +338,7 @@ export const appRouter = router({
           totalExpenseUsd,
           expenseBreakdown: expBreakdown,
           referralPct,
+          referralBaseProfit,   // 介紹費基準（淨利只扣機票+通道費）
           referralFee,
           actualNetProfit,
           actualRoi,

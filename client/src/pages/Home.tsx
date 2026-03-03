@@ -55,6 +55,7 @@ interface CalcResult {
   totalExpenseUsd: number;
   expenseBreakdown: ExpenseBreakdown;
   referralPct: number;
+  referralBaseProfit: number;  // 介紹費基準（只扣機票+通道費）
   referralFee: number;
   actualNetProfit: number;
   actualRoi: number;
@@ -281,6 +282,7 @@ export default function Home() {
       `毛利: $${(result.totalRevenueUsd - result.totalCostUsd).toFixed(2)} USD`,
       `淨利: $${result.netProfitUsd.toFixed(2)} USD`,
       ...(referralPct > 0 ? [
+        `介紹費基準 (淨利只扣機票+通道費): $${result.referralBaseProfit.toFixed(2)} USD`,
         `介紹費 (${referralName ? referralName + " " : ""}${referralPct}%): $${result.referralFee.toFixed(2)} USD`,
         `實際淨利: $${result.actualNetProfit.toFixed(2)} USD`,
       ] : []),
@@ -746,6 +748,9 @@ export default function Home() {
                           </p>
                           <p className="text-lg font-bold text-rose-500">-${result.referralFee.toFixed(2)}</p>
                           <p className="text-xs text-muted-foreground">USD</p>
+                          <p className="text-[10px] text-muted-foreground/70 mt-1">
+                            {lang === "zh" ? `基準: $${result.referralBaseProfit.toFixed(2)} (淨利只扣機票+通道費)` : lang === "en" ? `Base: $${result.referralBaseProfit.toFixed(2)} (ticket+channel only)` : `Cơ sở: $${result.referralBaseProfit.toFixed(2)}`}
+                          </p>
                         </div>
                         <div className="bg-secondary rounded-xl p-4">
                           <p className="text-xs text-muted-foreground mb-1">
