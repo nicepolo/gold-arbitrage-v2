@@ -32,14 +32,13 @@ function calcArbitrage(params: {
   return { totalCostUsd, totalRevenueUsd, netProfitUsd, roi };
 }
 
-// 細項開銷 schema
+// 細項開銷 schema（不含介紹費，介紹費改為結果區百分比計算）
 const expenseBreakdownSchema = z.object({
   ticket: z.number().min(0).default(0),      // 機票費用
   hotel: z.number().min(0).default(0),       // 飯店住宿
   meal: z.number().min(0).default(0),        // 餐飲雜支
   transport: z.number().min(0).default(0),   // 交通車費
   channel: z.number().min(0).default(0),     // 通道費
-  referral: z.number().min(0).default(0),    // 介紹費
 });
 
 const calcInputSchema = z.object({
@@ -51,6 +50,8 @@ const calcInputSchema = z.object({
   expenseUsd: z.number().min(0).default(0),
   // 新版細項開銷
   expenses: expenseBreakdownSchema.optional(),
+  // 介紹費百分比（0-100），從淨利中扣除
+  referralPct: z.number().min(0).max(100).default(0),
   sessionId: z.string().optional(),
   roiAlertThreshold: z.number().optional().default(2),
 });
@@ -136,7 +137,9 @@ export const appRouter = router({
           const targetIdx = Math.min(input.rank - 1, normalListings.length - 1);
           const targetListing = normalListings[targetIdx];
           const baseRate = targetListing?.price ?? 0;
-          const finalRate = baseRate + input.offset;
+          const rawFinalRate = baseRate + input.offset;
+          // 個位數四捨五入到十位（26897 → 26900）
+          const finalRate = Math.round(rawFinalRate / 10) * 10;
 
           return {
             listings: normalListings.slice(0, Math.min(10, normalListings.length)),
@@ -144,6 +147,7 @@ export const appRouter = router({
             targetListing,
             baseRate,
             offset: input.offset,
+            rawFinalRate,
             finalRate,
             source: "binance-c2c",
             updatedAt: new Date(),
@@ -265,13 +269,13 @@ export const appRouter = router({
     calculate: publicProcedure
       .input(calcInputSchema)
       .mutation(async ({ input }) => {
-        // 計算總開銷：細項加總 or 舊版單一值
+        // 計算總開銷：細項加總 or 舊版單一值（不含介紹費）
         const expBreakdown = input.expenses ?? {
-          ticket: 0, hotel: 0, meal: 0, transport: 0, channel: 0, referral: 0,
+          ticket: 0, hotel: 0, meal: 0, transport: 0, channel: 0,
         };
         const breakdownTotal =
           expBreakdown.ticket + expBreakdown.hotel + expBreakdown.meal +
-          expBreakdown.transport + expBreakdown.channel + expBreakdown.referral;
+          expBreakdown.transport + expBreakdown.channel;
         const totalExpenseUsd = breakdownTotal > 0 ? breakdownTotal : input.expenseUsd;
 
         const result = calcArbitrage({
@@ -281,6 +285,18 @@ export const appRouter = router({
           weightG: input.weightG,
           totalExpenseUsd,
         });
+
+        // 介紹費計算（從淨利中扣除）
+        const referralPct = input.referralPct ?? 0;
+        const referralFee = result.netProfitUsd * (referralPct / 100);
+        const actualNetProfit = result.netProfitUsd - referralFee;
+        const actualRoi = (actualNetProfit / result.totalCostUsd) * 100;
+
+        // 保本賣價（萬VND/錢）：在當前成本+開銷下的最低賣價
+        const weightChi = input.weightG / G_PER_CHI;
+        const breakEvenRevUsd = result.totalCostUsd + totalExpenseUsd;
+        const breakEvenRevVnd = breakEvenRevUsd * input.rateVndUsd;
+        const breakEvenSellVndWan = breakEvenRevVnd / weightChi / 10000;
 
         // 儲存歷史記錄
         if (input.sessionId) {
@@ -302,7 +318,7 @@ export const appRouter = router({
         const threshold = input.roiAlertThreshold ?? 2;
         if (result.roi > threshold) {
           try {
-            const expDetail = `機票$${expBreakdown.ticket} 住宿$${expBreakdown.hotel} 餐飲$${expBreakdown.meal} 交通$${expBreakdown.transport} 通道$${expBreakdown.channel} 介紹$${expBreakdown.referral}`;
+            const expDetail = `機票$${expBreakdown.ticket} 住宿$${expBreakdown.hotel} 餐飲$${expBreakdown.meal} 交通$${expBreakdown.transport} 通道$${expBreakdown.channel}`;
             await notifyOwner({
               title: `🚀 高利潤套利機會！ROI ${result.roi.toFixed(2)}%`,
               content: `買價: $${input.buyUsdOz}/oz | 賣價: ${input.sellVndWan}萬VND/錢 | 匯率: ${input.rateVndUsd} | 重量: ${input.weightG}g\n開銷: $${totalExpenseUsd} (${expDetail})\n淨利潤: $${result.netProfitUsd.toFixed(2)} USD | ROI: ${result.roi.toFixed(2)}%`,
@@ -318,6 +334,11 @@ export const appRouter = router({
           weightChi: input.weightG / G_PER_CHI,
           totalExpenseUsd,
           expenseBreakdown: expBreakdown,
+          referralPct,
+          referralFee,
+          actualNetProfit,
+          actualRoi,
+          breakEvenSellVndWan,
         };
       }),
 

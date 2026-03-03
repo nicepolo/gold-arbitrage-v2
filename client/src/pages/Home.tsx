@@ -25,10 +25,12 @@ import {
   UtensilsCrossed,
   Car,
   Lock,
-  UserCheck,
   ListOrdered,
   Plus,
   Minus,
+  FileText,
+  Copy,
+  UserCheck,
 } from "lucide-react";
 
 const WEIGHT_PRESETS = [200, 280, 300];
@@ -41,7 +43,6 @@ interface ExpenseBreakdown {
   meal: number;
   transport: number;
   channel: number;
-  referral: number;
 }
 
 interface CalcResult {
@@ -53,6 +54,11 @@ interface CalcResult {
   weightChi: number;
   totalExpenseUsd: number;
   expenseBreakdown: ExpenseBreakdown;
+  referralPct: number;
+  referralFee: number;
+  actualNetProfit: number;
+  actualRoi: number;
+  breakEvenSellVndWan: number;
 }
 
 const defaultExpenses: ExpenseBreakdown = {
@@ -61,7 +67,6 @@ const defaultExpenses: ExpenseBreakdown = {
   meal: 0,
   transport: 0,
   channel: 0,
-  referral: 0,
 };
 
 const expenseFields: {
@@ -74,7 +79,6 @@ const expenseFields: {
   { key: "meal",      icon: <UtensilsCrossed className="w-3.5 h-3.5" />, color: "text-orange-500" },
   { key: "transport", icon: <Car className="w-3.5 h-3.5" />,             color: "text-blue-500" },
   { key: "channel",   icon: <Lock className="w-3.5 h-3.5" />,            color: "text-rose-500" },
-  { key: "referral",  icon: <UserCheck className="w-3.5 h-3.5" />,       color: "text-emerald-600" },
 ];
 
 export default function Home() {
@@ -93,6 +97,8 @@ export default function Home() {
   const [c2cRank, setC2cRank] = useState(5);      // 第幾順位
   const [c2cOffset, setC2cOffset] = useState(50); // 加減點數
   const [showC2CPanel, setShowC2CPanel] = useState(false);
+  // 介紹費百分比（從淨利中扣除）
+  const [referralPct, setReferralPct] = useState(0);
 
   const sessionId = useMemo(() => getSessionId(), []);
   const utils = trpc.useUtils();
@@ -139,14 +145,14 @@ export default function Home() {
   // 當 C2C 資料更新時自動填入
   useEffect(() => {
     if (c2cData?.finalRate) {
-      setRateVndUsd(Math.round(c2cData.finalRate).toString());
+      setRateVndUsd(c2cData.finalRate.toString());
       setShowC2CPanel(true);
       toast.success(
-        `幣安 C2C 第${c2cData.targetRank}順位 ${c2cData.baseRate?.toLocaleString()} + ${c2cData.offset} = ${Math.round(c2cData.finalRate).toLocaleString()}`
+        `報價取得成功：${c2cData.baseRate?.toLocaleString()} + ${c2cData.offset} → ${c2cData.finalRate.toLocaleString()}`
       );
       setIsFetchingRate(false);
     } else if (c2cData?.source === "error") {
-      toast.error("幣安 C2C API 取得失敗，請手動輸入匯率");
+      toast.error("報價取得失敗，請手動輸入匯率");
       setIsFetchingRate(false);
     }
   }, [c2cData]);
@@ -227,10 +233,11 @@ export default function Home() {
       weightG: weight,
       expenseUsd: 0,
       expenses,
+      referralPct,
       sessionId,
       roiAlertThreshold: 2,
     });
-  }, [buyUsdOz, sellVndWan, rateVndUsd, weightG, expenses, sessionId, lang, calcMutation]);
+  }, [buyUsdOz, sellVndWan, rateVndUsd, weightG, expenses, referralPct, sessionId, lang, calcMutation]);
 
   const handleReset = () => {
     setBuyUsdOz("");
@@ -242,7 +249,54 @@ export default function Home() {
     setIsCalcDone(false);
   };
 
-  const isProfit = result && result.netProfitUsd > 0;
+  const isProfit = result && result.actualNetProfit > 0;
+
+  // 一鍵生成報告
+  const handleGenerateReport = () => {
+    if (!result) return;
+    const now = new Date().toLocaleString(lang === "zh" ? "zh-TW" : lang === "vi" ? "vi-VN" : "en-US");
+    const lines = [
+      "黃金跨境套利計算報告",
+      "═══════════════════════════════════",
+      "",
+      "基本信息",
+      `黃金重量: ${weightG}克 (${result.weightChi.toFixed(2)}錢)`,
+      `香港買價: ${buyUsdOz} USD/oz`,
+      `越南賣價: ${sellVndWan} 萬VND/錢`,
+      `匯率: ${rateVndUsd} VND/USD`,
+      "",
+      "財務分析",
+      `總營收: $${result.totalRevenueUsd.toFixed(2)} USD`,
+      `購買成本: $${result.totalCostUsd.toFixed(2)} USD`,
+      `開銷總計: $${result.totalExpenseUsd.toFixed(2)} USD`,
+      ...(result.expenseBreakdown.ticket ? [`  ✈️ 機票: $${result.expenseBreakdown.ticket} USD`] : []),
+      ...(result.expenseBreakdown.hotel ? [`  🏨 住宿: $${result.expenseBreakdown.hotel} USD`] : []),
+      ...(result.expenseBreakdown.meal ? [`  🍜 餐飲: $${result.expenseBreakdown.meal} USD`] : []),
+      ...(result.expenseBreakdown.transport ? [`  🚗 交通: $${result.expenseBreakdown.transport} USD`] : []),
+      ...(result.expenseBreakdown.channel ? [`  🔒 通道費: $${result.expenseBreakdown.channel} USD`] : []),
+      "",
+      "利潤計算",
+      `毛利: $${(result.totalRevenueUsd - result.totalCostUsd).toFixed(2)} USD`,
+      `淨利: $${result.netProfitUsd.toFixed(2)} USD`,
+      ...(referralPct > 0 ? [
+        `介紹費 (${referralPct}%): $${result.referralFee.toFixed(2)} USD`,
+        `實際淨利: $${result.actualNetProfit.toFixed(2)} USD`,
+      ] : []),
+      `保本賣價: ${result.breakEvenSellVndWan.toFixed(2)} 萬VND/錢`,
+      `ROI: ${result.actualRoi.toFixed(2)}%`,
+      "",
+      "計算時間",
+      now,
+      "═══════════════════════════════════",
+    ];
+    const report = lines.join("\n");
+    navigator.clipboard.writeText(report).then(() => {
+      toast.success(lang === "zh" ? "報告已複製到剪貼簿！" : lang === "en" ? "Report copied!" : "Đã sao chép báo cáo!");
+    }).catch(() => {
+      // fallback: show in alert
+      window.prompt("複製以下報告：", report);
+    });
+  };
   const weightOzPreview = parseFloat(weightG) ? (parseFloat(weightG) / G_PER_OZ).toFixed(4) : "—";
   const weightChiPreview = parseFloat(weightG) ? (parseFloat(weightG) / G_PER_CHI).toFixed(2) : "—";
   const vndPreview = parseFloat(sellVndWan) ? `${(parseFloat(sellVndWan) * 10000).toLocaleString()} VND` : "—";
@@ -424,23 +478,11 @@ export default function Home() {
                   )}
                 </div>
 
-                {/* Exchange rate with Binance C2C */}
+                {/* Exchange rate with C2C */}
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <Label className="text-xs font-medium text-muted-foreground">
-                      {t(lang, "exchangeRate")}
-                    </Label>
-                    <button
-                      onClick={handleAutoRate}
-                      disabled={isFetchingRate || isC2CFetching}
-                      className="flex items-center gap-1 text-xs font-medium transition-colors disabled:opacity-50"
-                      style={{ color: "oklch(0.55 0.17 158)" }}
-                    >
-                      {(isFetchingRate || isC2CFetching)
-                        ? <><RefreshCw className="w-3 h-3 animate-spin" />取得中...</>
-                        : <><Zap className="w-3 h-3" />幣安 C2C 取得</>}
-                    </button>
-                  </div>
+                  <Label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                    {t(lang, "exchangeRate")}
+                  </Label>
                   <Input
                     type="number"
                     value={rateVndUsd}
@@ -457,7 +499,7 @@ export default function Home() {
                     >
                       <div className="flex items-center gap-2">
                         <ListOrdered className="w-3.5 h-3.5" style={{ color: "oklch(0.55 0.17 158)" }} />
-                        <span className="text-xs font-medium text-foreground">幣安 C2C 設定</span>
+                        <span className="text-xs font-medium text-foreground">報價設定</span>
                         <span className="text-xs text-muted-foreground">
                           第 {c2cRank} 順位 {c2cOffset >= 0 ? `+${c2cOffset}` : c2cOffset}
                         </span>
@@ -552,14 +594,39 @@ export default function Home() {
                         >
                           {(isFetchingRate || isC2CFetching)
                             ? <><RefreshCw className="w-3 h-3 mr-1.5 animate-spin" />取得中...</>
-                            : <><Zap className="w-3 h-3 mr-1.5" />取得幣安 C2C 報價</>}
+                            : <><Zap className="w-3 h-3 mr-1.5" />取得報價</>}
                         </Button>
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* Expense breakdown section */}
+                {/* Referral fee input */}
+                <div>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <UserCheck className="w-3.5 h-3.5" style={{ color: "oklch(0.55 0.17 158)" }} />
+                    <Label className="text-xs font-medium text-muted-foreground">
+                      {lang === "zh" ? "介紹費百分比 (%)" : lang === "en" ? "Referral Fee (%)" : "Phí giới thiệu (%)"}
+                    </Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      value={referralPct || ""}
+                      onChange={(e) => setReferralPct(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
+                      placeholder="0"
+                      className="bg-input border-border"
+                      min={0}
+                      max={100}
+                    />
+                    <span className="text-sm text-muted-foreground font-medium">%</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {lang === "zh" ? "從淨利中扣除，不計入開銷" : lang === "en" ? "Deducted from net profit" : "Trừ từ lợi nhuận ròng"}
+                  </p>
+                </div>
+
+                  {/* Expense breakdown section */}
                 <div className="rounded-xl border border-border overflow-hidden">
                   <button
                     onClick={() => setShowExpenses(!showExpenses)}
@@ -684,13 +751,17 @@ export default function Home() {
                     style={isProfit ? {
                       background: "linear-gradient(135deg, oklch(0.96 0.03 158), oklch(0.94 0.04 165))"
                     } : {}}>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">{t(lang, "netProfit")}</p>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">
+                      {referralPct > 0
+                        ? (lang === "zh" ? "實際淨利" : lang === "en" ? "Actual Net Profit" : "Lợi nhuận thực")
+                        : t(lang, "netProfit")}
+                    </p>
                     <div className="flex items-baseline gap-2">
                       <span className={`text-3xl font-black tracking-tight ${
                         isProfit ? "" : "text-rose-600"
                       }`}
                         style={isProfit ? { color: "oklch(0.40 0.18 158)" } : {}}>
-                        {isProfit ? "+" : ""}${result.netProfitUsd.toFixed(2)}
+                        {isProfit ? "+" : ""}${result.actualNetProfit.toFixed(2)}
                       </span>
                       <span className="text-sm text-muted-foreground">USD</span>
                     </div>
@@ -702,7 +773,7 @@ export default function Home() {
                         color: "oklch(0.40 0.18 158)"
                       } : {}}>
                       {isProfit ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                      ROI {result.roi.toFixed(2)}%
+                      ROI {result.actualRoi.toFixed(2)}%
                     </div>
                   </div>
 
@@ -719,9 +790,49 @@ export default function Home() {
                       <p className="text-xs text-muted-foreground">USD</p>
                     </div>
                     <div className="bg-secondary rounded-xl p-4">
-                      <p className="text-xs text-muted-foreground mb-1">{t(lang, "weightOz")}</p>
-                      <p className="text-lg font-bold text-foreground">{result.weightOz.toFixed(4)}</p>
-                      <p className="text-xs text-muted-foreground">oz</p>
+                      <p className="text-xs text-muted-foreground mb-1">
+                        {lang === "zh" ? "毛利" : lang === "en" ? "Gross Profit" : "Lợi nhuận gộp"}
+                      </p>
+                      <p className="text-lg font-bold text-foreground">
+                        ${(result.totalRevenueUsd - result.totalCostUsd).toFixed(2)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">USD</p>
+                    </div>
+                    <div className="bg-secondary rounded-xl p-4">
+                      <p className="text-xs text-muted-foreground mb-1">
+                        {lang === "zh" ? "淨利" : lang === "en" ? "Net Profit" : "Lợi nhuận ròng"}
+                      </p>
+                      <p className="text-lg font-bold text-foreground">${result.netProfitUsd.toFixed(2)}</p>
+                      <p className="text-xs text-muted-foreground">USD</p>
+                    </div>
+                    {referralPct > 0 && (
+                      <>
+                        <div className="bg-secondary rounded-xl p-4">
+                          <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                            <UserCheck className="w-3 h-3" />
+                            {lang === "zh" ? `介紹費 (${referralPct}%)` : lang === "en" ? `Referral (${referralPct}%)` : `Phí GT (${referralPct}%)`}
+                          </p>
+                          <p className="text-lg font-bold text-rose-500">-${result.referralFee.toFixed(2)}</p>
+                          <p className="text-xs text-muted-foreground">USD</p>
+                        </div>
+                        <div className="bg-secondary rounded-xl p-4">
+                          <p className="text-xs text-muted-foreground mb-1">
+                            {lang === "zh" ? "實際淨利" : lang === "en" ? "Actual Net" : "Thực lãi"}
+                          </p>
+                          <p className={`text-lg font-bold ${result.actualNetProfit > 0 ? "" : "text-rose-600"}`}
+                            style={result.actualNetProfit > 0 ? { color: "oklch(0.40 0.18 158)" } : {}}>
+                            ${result.actualNetProfit.toFixed(2)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">USD</p>
+                        </div>
+                      </>
+                    )}
+                    <div className="bg-secondary rounded-xl p-4">
+                      <p className="text-xs text-muted-foreground mb-1">
+                        {lang === "zh" ? "保本賣價" : lang === "en" ? "Break-even" : "Giá hòa vốn"}
+                      </p>
+                      <p className="text-lg font-bold text-foreground">{result.breakEvenSellVndWan.toFixed(2)}</p>
+                      <p className="text-xs text-muted-foreground">萬VND/錢</p>
                     </div>
                     <div className="bg-secondary rounded-xl p-4">
                       <p className="text-xs text-muted-foreground mb-1">{t(lang, "weightChi")}</p>
@@ -760,8 +871,20 @@ export default function Home() {
                     </div>
                   )}
 
+                  {/* Generate Report Button */}
+                  <Button
+                    onClick={handleGenerateReport}
+                    variant="outline"
+                    className="w-full h-10 text-sm font-medium rounded-xl border-border hover:bg-secondary"
+                    style={{ borderColor: "oklch(0.60 0.17 158 / 0.4)", color: "oklch(0.45 0.17 158)" }}
+                  >
+                    <FileText className="w-4 h-4 mr-2" />
+                    {lang === "zh" ? "一鍵生成報告" : lang === "en" ? "Generate Report" : "Tạo báo cáo"}
+                    <Copy className="w-3.5 h-3.5 ml-2 opacity-60" />
+                  </Button>
+
                   {/* High profit alert */}
-                  {result.roi > 2 && (
+                  {result.actualRoi > 2 && (
                     <div className="flex items-center gap-2.5 p-3.5 rounded-xl border"
                       style={{
                         background: "oklch(0.60 0.17 158 / 0.06)",
@@ -769,9 +892,9 @@ export default function Home() {
                       }}>
                       <Sparkles className="w-4 h-4 flex-shrink-0" style={{ color: "oklch(0.55 0.17 158)" }} />
                       <p className="text-xs font-medium" style={{ color: "oklch(0.45 0.17 158)" }}>
-                        {lang === "zh" ? `高利潤套利機會！ROI ${result.roi.toFixed(2)}%，已發送通知。` :
-                         lang === "en" ? `High profit opportunity! ROI ${result.roi.toFixed(2)}%. Notification sent.` :
-                         `Cơ hội lợi nhuận cao! ROI ${result.roi.toFixed(2)}%. Đã gửi thông báo.`}
+                        {lang === "zh" ? `高利潤套利機會！ROI ${result.actualRoi.toFixed(2)}%，已發送通知。` :
+                         lang === "en" ? `High profit opportunity! ROI ${result.actualRoi.toFixed(2)}%. Notification sent.` :
+                         `Cơ hội lợi nhuận cao! ROI ${result.actualRoi.toFixed(2)}%. Đã gửi thông báo.`}
                       </p>
                     </div>
                   )}
