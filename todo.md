@@ -16,3 +16,9 @@
 - [x] Railway 部署配置：railway.json
 - [x] GitHub：README.md、.gitignore
 - [x] 單元測試：計算邏輯測試（7 tests passed）
+- [x] 配色改為漸層綠主題（emerald/teal 系）
+- [x] 開銷拆分細項：機票、住宿、餐飲、交通、通道費、介紹費
+- [x] 後端計算邏輯更新：支援細項開銷加總
+- [x] 即時匯率串接（ExchangeRate API + 備用 API）
+- [x] Telegram 機器人：高利潤主動推播到指定聊天室（ALERT_CHAT_IDS）
+- [x] 更新單元測試：涵蓋細項開銷計算（12 tests passed）
