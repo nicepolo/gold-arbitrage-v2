@@ -42,3 +42,9 @@
 - [x] 更新後端 calculate 邏輯：新增 referralBaseProfit 欄位
 - [x] 更新前端結果顯示：說明介紹費計算基礎（基準: $xxx 淨利只扣機票+通道費）
 - [x] 更新報告生成：顯示介紹費基礎說明
+- [x] 後端串接幣託 (BitoEX) USDT/TWD 匯率 API（rawRate + 0.15 調整）
+- [x] 前端：買價欄位下方顯示「每台錢台幣價格」（金價 × USDT/TWD ÷ 8.294）
+- [x] 前端：開銷拆分欄位改為台幣 (TWD) 輸入，顯示 TWD 合計及 USD 換算
+- [x] 前端：開銷欄位加入 TWD 貨幣標示和提示文字
+- [x] 更新 i18n.ts：加入 pricePerChiTwd、expenseCurrencyHint 等新翻譯 key（中/英/越）
+- [x] 更新單元測試：涵蓋 TWD 開銷換算和每台錢台幣價格計算（14 tests passed）

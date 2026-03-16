@@ -10,7 +10,7 @@ export const translations = {
     buyPrice: "香港買價 (USD/oz)",
     sellPrice: "越南賣價 (萬 VND/錢)",
     exchangeRate: "匯率 (VND/USD)",
-    expenseSection: "開銷拆分 (USD)",
+    expenseSection: "開銷拆分 (TWD)",
     expenseTicket: "機票費用",
     expenseHotel: "飯店住宿",
     expenseMeal: "餐飲雜支",
@@ -54,6 +54,16 @@ export const translations = {
     autoRateSuccess: "已自動填入即時匯率",
     autoRateError: "無法取得匯率，請手動輸入",
     totalExpense: "總開銷",
+    // 新增：每台錢台幣價格
+    pricePerChiTwd: "每台錢台幣價格",
+    pricePerChiTwdUnit: "TWD/錢",
+    pricePerChiTwdHint: "金價 × USDT/TWD ÷ 8.294",
+    fetchingUsdtTwd: "取得幣託匯率中...",
+    usdtTwdRate: "USDT/TWD 匯率",
+    // 開銷貨幣提示
+    expenseCurrencyHint: "以台幣 (TWD) 輸入",
+    expenseTwdTotal: "開銷合計 (TWD)",
+    expenseUsdEquiv: "約 USD",
   },
   en: {
     appTitle: "Gold Arbitrage Calculator",
@@ -64,7 +74,7 @@ export const translations = {
     buyPrice: "HK Buy Price (USD/oz)",
     sellPrice: "VN Sell Price (10k VND/chi)",
     exchangeRate: "Exchange Rate (VND/USD)",
-    expenseSection: "Expense Breakdown (USD)",
+    expenseSection: "Expense Breakdown (TWD)",
     expenseTicket: "Flight Ticket",
     expenseHotel: "Hotel",
     expenseMeal: "Meals & Misc",
@@ -108,6 +118,16 @@ export const translations = {
     autoRateSuccess: "Live rate filled in",
     autoRateError: "Cannot fetch rate, please enter manually",
     totalExpense: "Total Expense",
+    // New: price per chi in TWD
+    pricePerChiTwd: "Price per Chi (TWD)",
+    pricePerChiTwdUnit: "TWD/chi",
+    pricePerChiTwdHint: "Gold Price × USDT/TWD ÷ 8.294",
+    fetchingUsdtTwd: "Fetching BitoEX rate...",
+    usdtTwdRate: "USDT/TWD Rate",
+    // Expense currency hint
+    expenseCurrencyHint: "Enter in TWD",
+    expenseTwdTotal: "Total Expenses (TWD)",
+    expenseUsdEquiv: "≈ USD",
   },
   vi: {
     appTitle: "Máy Tính Chênh Lệch Vàng",
@@ -118,7 +138,7 @@ export const translations = {
     buyPrice: "Giá mua HK (USD/oz)",
     sellPrice: "Giá bán VN (vạn VND/chỉ)",
     exchangeRate: "Tỷ giá (VND/USD)",
-    expenseSection: "Chi Phí Chi Tiết (USD)",
+    expenseSection: "Chi Phí Chi Tiết (TWD)",
     expenseTicket: "Vé máy bay",
     expenseHotel: "Khách sạn",
     expenseMeal: "Ăn uống & Linh tinh",
@@ -162,6 +182,16 @@ export const translations = {
     autoRateSuccess: "Đã điền tỷ giá thực tế",
     autoRateError: "Không lấy được tỷ giá, vui lòng nhập thủ công",
     totalExpense: "Tổng chi phí",
+    // Mới: giá mỗi chỉ bằng TWD
+    pricePerChiTwd: "Giá mỗi chỉ (TWD)",
+    pricePerChiTwdUnit: "TWD/chỉ",
+    pricePerChiTwdHint: "Giá vàng × USDT/TWD ÷ 8.294",
+    fetchingUsdtTwd: "Đang lấy tỷ giá BitoEX...",
+    usdtTwdRate: "Tỷ giá USDT/TWD",
+    // Gợi ý tiền tệ chi phí
+    expenseCurrencyHint: "Nhập bằng TWD",
+    expenseTwdTotal: "Tổng chi phí (TWD)",
+    expenseUsdEquiv: "≈ USD",
   },
 } as const;
 

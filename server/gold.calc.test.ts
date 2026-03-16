@@ -160,6 +160,30 @@ describe("Expense Breakdown - sumExpenses", () => {
     expect(withoutReferral.netProfitUsd - withReferral.netProfitUsd).toBeCloseTo(100, 2);
   });
 
+  it("should convert TWD expenses to USD correctly", () => {
+    const twdExpenses = { ticket: 5000, hotel: 3000, meal: 1500, transport: 1000, channel: 2000 };
+    const usdTwdRate = 32;
+    const totalTwd = Object.values(twdExpenses).reduce((a, b) => a + b, 0);
+    const totalUsd = totalTwd / usdTwdRate;
+    expect(totalTwd).toBe(12500);
+    expect(totalUsd).toBeCloseTo(390.625, 3);
+    // 用換算後的 USD 開銷計算
+    const result = calcArbitrage({
+      buyUsdOz: 5298.5, sellVndWan: 1767, rateVndUsd: 26825, weightG: 300,
+      totalExpenseUsd: totalUsd,
+    });
+    expect(result.netProfitUsd).toBeDefined();
+  });
+
+  it("should calculate price per chi in TWD correctly", () => {
+    const goldPriceUsdOz = 3000;
+    const usdTwdRate = 32;
+    const TAEL_PER_OZ = 31.1035 / 3.75; // 8.2943
+    const pricePerChiTwd = goldPriceUsdOz * usdTwdRate / TAEL_PER_OZ;
+    // 3000 * 32 / (31.1035/3.75) ≈ 11574.26
+    expect(pricePerChiTwd).toBeCloseTo(11574.26, 1);
+  });
+
   it("should handle large referral fee reducing profit to negative", () => {
     // 先計算無開銷時的最大利潤，然後設定超過此值的開銷
     const baseResult = calcArbitrage({

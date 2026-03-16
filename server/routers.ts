@@ -13,6 +13,7 @@ import {
 // ---- 黃金套利計算核心邏輯 ----
 const G_PER_OZ = 31.1035;
 const G_PER_CHI = 3.75; // 1錢 = 3.75克
+const TAEL_PER_OZ = G_PER_OZ / G_PER_CHI; // 1 oz = 8.2943 台錢
 
 function calcArbitrage(params: {
   buyUsdOz: number;
@@ -32,13 +33,18 @@ function calcArbitrage(params: {
   return { totalCostUsd, totalRevenueUsd, netProfitUsd, roi };
 }
 
-// 細項開銷 schema（不含介紹費，介紹費改為結果區百分比計算）
+  // 細項開銷 schema（不含介紹費，介紹費改為結果區百分比計算）
 const expenseBreakdownSchema = z.object({
   ticket: z.number().min(0).default(0),      // 機票費用
   hotel: z.number().min(0).default(0),       // 飯店住宿
   meal: z.number().min(0).default(0),        // 餐飲雜支
   transport: z.number().min(0).default(0),   // 交通車費
   channel: z.number().min(0).default(0),     // 通道費
+  processing: z.number().min(0).default(0),  // 加工費
+  // 開銷貨幣模式：'usd' 或 'twd'（預設 twd）
+  currency: z.enum(['usd', 'twd']).default('twd'),
+  // TWD 轉 USD 的匯率（只在 currency='twd' 時使用）
+  usdTwdRate: z.number().positive().default(32),
 });
 
 const calcInputSchema = z.object({
@@ -235,6 +241,29 @@ export const appRouter = router({
       }
     }),
 
+    // 取得幣託 USDT/TWD 即時匯率（加 0.15 作為買入溢價）
+    getBitoUsdtTwd: publicProcedure.query(async () => {
+      try {
+        const res = await fetch(
+          "https://api.bitopro.com/v3/tickers/usdt_twd",
+          { signal: AbortSignal.timeout(5000) }
+        );
+        if (!res.ok) throw new Error(`BitoPro API error: ${res.status}`);
+        const data = await res.json() as { data: { lastPrice: string } };
+        const rawRate = parseFloat(data.data.lastPrice);
+        if (!rawRate || rawRate <= 0) throw new Error("Invalid rate");
+        const adjustedRate = rawRate + 0.15;
+        return {
+          rawRate,
+          adjustedRate,
+          source: "bitopro",
+          updatedAt: new Date(),
+        };
+      } catch (err) {
+        return { rawRate: null, adjustedRate: null, source: "error", error: String(err), updatedAt: new Date() };
+      }
+    }),
+
     // 取得即時 VND/USD 匯率
     getExchangeRate: publicProcedure.query(async () => {
       try {
@@ -271,12 +300,19 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         // 計算總開銷：細項加總 or 舊版單一值（不含介紹費）
         const expBreakdown = input.expenses ?? {
-          ticket: 0, hotel: 0, meal: 0, transport: 0, channel: 0,
+          ticket: 0, hotel: 0, meal: 0, transport: 0, channel: 0, processing: 0,
+          currency: 'twd' as const, usdTwdRate: 32,
         };
         const breakdownTotal =
           expBreakdown.ticket + expBreakdown.hotel + expBreakdown.meal +
-          expBreakdown.transport + expBreakdown.channel;
-        const totalExpenseUsd = breakdownTotal > 0 ? breakdownTotal : input.expenseUsd;
+          expBreakdown.transport + expBreakdown.channel + (expBreakdown.processing ?? 0);
+        // 若開銷為台幣，先換算為 USD
+        const expCurrency = expBreakdown.currency ?? 'twd';
+        const usdTwdRate = expBreakdown.usdTwdRate ?? 32;
+        const breakdownTotalUsd = expCurrency === 'twd'
+          ? breakdownTotal / usdTwdRate
+          : breakdownTotal;
+        const totalExpenseUsd = breakdownTotalUsd > 0 ? breakdownTotalUsd : input.expenseUsd;
 
         const result = calcArbitrage({
           buyUsdOz: input.buyUsdOz,
@@ -289,7 +325,11 @@ export const appRouter = router({
         // 介紹費計算：基準為「淨利（只扣機票+通道費）」
         // 不含住宿、交通、餐飲（這些為個人生活成本，不納入商業成本）
         const referralPct = input.referralPct ?? 0;
-        const referralCoreExpense = expBreakdown.ticket + expBreakdown.channel; // 機票 + 通道費
+        // 介紹費基準開銷也需換算
+        const referralCoreExpenseRaw = expBreakdown.ticket + expBreakdown.channel; // 機票 + 通道費
+        const referralCoreExpense = expCurrency === 'twd'
+          ? referralCoreExpenseRaw / usdTwdRate
+          : referralCoreExpenseRaw;
         const referralBaseProfit = result.totalRevenueUsd - result.totalCostUsd - referralCoreExpense;
         const referralFee = referralBaseProfit * (referralPct / 100);
         const actualNetProfit = result.netProfitUsd - referralFee;
@@ -331,12 +371,16 @@ export const appRouter = router({
           }
         }
 
+        // 每台錢台幣價格：需要 USDT/TWD 匯率，由前端傳入
+        // 這裡只回傳計算所需的中間值，前端用 bitoUsdtTwd 計算
         return {
           ...result,
           weightOz: input.weightG / G_PER_OZ,
           weightChi: input.weightG / G_PER_CHI,
           totalExpenseUsd,
           expenseBreakdown: expBreakdown,
+          expCurrency,
+          usdTwdRate,
           referralPct,
           referralBaseProfit,   // 介紹費基準（淨利只扣機票+通道費）
           referralFee,

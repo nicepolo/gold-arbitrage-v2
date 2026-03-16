@@ -102,6 +102,8 @@ export default function Home() {
   const [referralPct, setReferralPct] = useState(0);
   // 介紹人名稱
   const [referralName, setReferralName] = useState("");
+  // TWD 換算匯率（用於開銷換算 USD）
+  const [usdTwdRate, setUsdTwdRate] = useState(32);
 
   const sessionId = useMemo(() => getSessionId(), []);
   const utils = trpc.useUtils();
@@ -160,6 +162,32 @@ export default function Home() {
     }
   }, [c2cData]);
 
+  // BitoEX USDT/TWD 匯率查詢（自動啟動）
+  const {
+    data: bitoData,
+    refetch: refetchBito,
+    isFetching: isBitoFetching,
+  } = trpc.gold.getBitoUsdtTwd.useQuery(
+    undefined,
+    { enabled: true, retry: false, staleTime: 60000 }
+  );
+
+  // 當 BitoEX 資料更新時，同步更新 usdTwdRate
+  useEffect(() => {
+    if (bitoData?.adjustedRate && bitoData.adjustedRate > 0) {
+      // 四捨五入到整數
+      setUsdTwdRate(Math.round(bitoData.adjustedRate));
+    }
+  }, [bitoData]);
+
+  // 每台錢台幣價格：金價(USD/oz) × USDT/TWD ÷ 8.294
+  const TAEL_PER_OZ = G_PER_OZ / G_PER_CHI; // 8.2943
+  const pricePerChiTwd = useMemo(() => {
+    const buy = parseFloat(buyUsdOz);
+    if (!buy || !usdTwdRate) return null;
+    return buy * usdTwdRate / TAEL_PER_OZ;
+  }, [buyUsdOz, usdTwdRate]);
+
   // 備用：一般匯率查詢
   const { data: rateData, refetch: refetchRate } = trpc.gold.getExchangeRate.useQuery(
     undefined,
@@ -208,7 +236,10 @@ export default function Home() {
     { refetchOnWindowFocus: false }
   );
 
-  const totalExpense = Object.values(expenses).reduce((a, b) => a + b, 0);
+  // 開銷合計（TWD）
+  const totalExpenseTwd = Object.values(expenses).reduce((a, b) => a + b, 0);
+  // 開銷合計（USD 換算）
+  const totalExpenseUsdCalc = usdTwdRate > 0 ? totalExpenseTwd / usdTwdRate : 0;
 
   const handleExpenseChange = (key: keyof ExpenseBreakdown, val: string) => {
     setExpenses(prev => ({ ...prev, [key]: parseFloat(val) || 0 }));
@@ -235,12 +266,16 @@ export default function Home() {
       rateVndUsd: rate,
       weightG: weight,
       expenseUsd: 0,
-      expenses,
+      expenses: {
+        ...expenses,
+        currency: 'twd' as const,
+        usdTwdRate,
+      },
       referralPct,
       sessionId,
       roiAlertThreshold: 2,
     });
-  }, [buyUsdOz, sellVndWan, rateVndUsd, weightG, expenses, referralPct, sessionId, lang, calcMutation]);
+  }, [buyUsdOz, sellVndWan, rateVndUsd, weightG, expenses, referralPct, sessionId, lang, calcMutation, usdTwdRate]);
 
   const handleReset = () => {
     setBuyUsdOz("");
@@ -458,9 +493,37 @@ export default function Home() {
                   />
                   {goldSpotData?.price && goldSpotData.source !== 'error' && (
                     <p className="text-xs text-muted-foreground mt-1">
-                      來源: {goldSpotData.note} &nbsp;· 
+                      來源: {goldSpotData.note} &nbsp;· 
                       <span style={{ color: "oklch(0.45 0.17 158)" }}>{goldSpotData.price.toFixed(2)} USD/oz</span>
                     </p>
+                  )}
+                  {/* 每台錢台幣價格 */}
+                  {pricePerChiTwd !== null && (
+                    <div className="mt-2 flex items-center justify-between px-3 py-2 rounded-lg"
+                      style={{ background: "oklch(0.60 0.17 158 / 0.08)", border: "1px solid oklch(0.60 0.17 158 / 0.2)" }}>
+                      <div>
+                        <p className="text-xs font-semibold" style={{ color: "oklch(0.40 0.18 158)" }}>
+                          {t(lang, "pricePerChiTwd")}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {t(lang, "pricePerChiTwdHint")}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        {isBitoFetching ? (
+                          <p className="text-xs text-muted-foreground">{t(lang, "fetchingUsdtTwd")}</p>
+                        ) : (
+                          <>
+                            <p className="text-lg font-black" style={{ color: "oklch(0.40 0.18 158)" }}>
+                              NT${Math.round(pricePerChiTwd).toLocaleString()}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {t(lang, "usdtTwdRate")}: {usdTwdRate}
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </div>
                   )}
                 </div>
 
@@ -568,10 +631,10 @@ export default function Home() {
                   >
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-semibold text-foreground">{t(lang, "expenseSection")}</span>
-                      {totalExpense > 0 && (
+                      {totalExpenseTwd > 0 && (
                         <span className="text-xs px-2 py-0.5 rounded-full font-medium text-white"
                           style={{ background: "oklch(0.55 0.17 158)" }}>
-                          ${totalExpense.toFixed(0)}
+                          NT${totalExpenseTwd.toFixed(0)}
                         </span>
                       )}
                     </div>
@@ -583,12 +646,21 @@ export default function Home() {
 
                   {showExpenses && (
                     <div className="p-4 space-y-3 bg-card">
+                      {/* TWD 輸入提示 */}
+                      <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                        <span className="inline-block w-2 h-2 rounded-full bg-sky-400"></span>
+                        {t(lang, "expenseCurrencyHint")}
+                        {usdTwdRate > 0 && (
+                          <span className="ml-1 opacity-70">({t(lang, "usdtTwdRate")}: {usdTwdRate})</span>
+                        )}
+                      </p>
                       <div className="grid grid-cols-2 gap-3">
                         {expenseFields.map(({ key, icon, color }) => (
                           <div key={key}>
                             <Label className="text-xs text-muted-foreground mb-1 flex items-center gap-1.5">
                               <span className={color}>{icon}</span>
                               {t(lang, `expense${key.charAt(0).toUpperCase() + key.slice(1)}` as keyof typeof translations.zh)}
+                              <span className="text-[10px] opacity-60">TWD</span>
                             </Label>
                             <Input
                               type="number"
@@ -603,10 +675,17 @@ export default function Home() {
 
                       {/* Total expense display */}
                       <div className="flex items-center justify-between pt-2 border-t border-border">
-                        <span className="text-xs font-medium text-muted-foreground">{t(lang, "expenseTotal")}</span>
-                        <span className="text-sm font-bold" style={{ color: "oklch(0.45 0.17 158)" }}>
-                          ${totalExpense.toFixed(2)} USD
-                        </span>
+                        <span className="text-xs font-medium text-muted-foreground">{t(lang, "expenseTwdTotal")}</span>
+                        <div className="text-right">
+                          <span className="text-sm font-bold" style={{ color: "oklch(0.45 0.17 158)" }}>
+                            NT${totalExpenseTwd.toFixed(0)}
+                          </span>
+                          {usdTwdRate > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              {t(lang, "expenseUsdEquiv")} ${totalExpenseUsdCalc.toFixed(2)}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}
