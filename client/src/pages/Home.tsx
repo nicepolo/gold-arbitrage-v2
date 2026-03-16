@@ -188,6 +188,23 @@ export default function Home() {
     return buy * usdTwdRate / TAEL_PER_OZ;
   }, [buyUsdOz, usdTwdRate]);
 
+  // 越南賣出換算台幣：每台錢越南賣價 × 10000 ÷ (VND/USD ÷ USDT/TWD)
+  // 即 sellVndWan × 10000 × USDT/TWD ÷ rateVndUsd
+  const sellPerChiTwd = useMemo(() => {
+    const sell = parseFloat(sellVndWan);
+    const rate = parseFloat(rateVndUsd);
+    if (!sell || !rate || !usdTwdRate) return null;
+    // VND/TWD = rateVndUsd / usdTwdRate
+    const vndPerTwd = rate / usdTwdRate;
+    return (sell * 10000) / vndPerTwd;
+  }, [sellVndWan, rateVndUsd, usdTwdRate]);
+
+  // 每台錢買賣台幣利差
+  const chiTwdSpread = useMemo(() => {
+    if (pricePerChiTwd === null || sellPerChiTwd === null) return null;
+    return sellPerChiTwd - pricePerChiTwd;
+  }, [pricePerChiTwd, sellPerChiTwd]);
+
   // 備用：一般匯率查詢
   const { data: rateData, refetch: refetchRate } = trpc.gold.getExchangeRate.useQuery(
     undefined,
@@ -569,32 +586,38 @@ export default function Home() {
                       {t(lang, "currentRate")}: {vndPreview}/{t(lang, "chiUnit")}
                     </p>
                   )}
-                  {/* 越南賣價下方也顯示每台錢台幣價格 */}
-                  {pricePerChiTwd !== null && (
-                    <div className="mt-2 flex items-center justify-between px-3 py-2 rounded-lg"
-                      style={{ background: "oklch(0.60 0.17 158 / 0.08)", border: "1px solid oklch(0.60 0.17 158 / 0.2)" }}>
-                      <div>
-                        <p className="text-xs font-semibold" style={{ color: "oklch(0.40 0.18 158)" }}>
-                          {t(lang, "pricePerChiTwd")}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {t(lang, "pricePerChiTwdHint")}
+                  {/* 越南賣價下方：賣出台幣金額 + 買賣利差 */}
+                  {sellPerChiTwd !== null && (
+                    <div className="mt-2 rounded-lg overflow-hidden"
+                      style={{ border: "1px solid oklch(0.60 0.17 158 / 0.2)" }}>
+                      {/* 賣出台幣行 */}
+                      <div className="flex items-center justify-between px-3 py-2"
+                        style={{ background: "oklch(0.55 0.19 170 / 0.08)" }}>
+                        <div>
+                          <p className="text-xs font-semibold" style={{ color: "oklch(0.35 0.18 170)" }}>
+                            {lang === "zh" ? "賣出每台錢台幣" : lang === "en" ? "Sell per Chi (TWD)" : "Bán mỗi chỉ (TWD)"}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {lang === "zh" ? "VND賣價 × 10000 ÷ VND/TWD" : lang === "en" ? "VND × 10000 ÷ VND/TWD" : "VND × 10000 ÷ VND/TWD"}
+                          </p>
+                        </div>
+                        <p className="text-lg font-black" style={{ color: "oklch(0.35 0.18 170)" }}>
+                          NT${Math.round(sellPerChiTwd).toLocaleString()}
                         </p>
                       </div>
-                      <div className="text-right">
-                        {isBitoFetching ? (
-                          <p className="text-xs text-muted-foreground">{t(lang, "fetchingUsdtTwd")}</p>
-                        ) : (
-                          <>
-                            <p className="text-lg font-black" style={{ color: "oklch(0.40 0.18 158)" }}>
-                              NT${Math.round(pricePerChiTwd).toLocaleString()}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {t(lang, "usdtTwdRate")}: {usdTwdRate}
-                            </p>
-                          </>
-                        )}
-                      </div>
+                      {/* 買賣利差行 */}
+                      {chiTwdSpread !== null && pricePerChiTwd !== null && (
+                        <div className="flex items-center justify-between px-3 py-1.5"
+                          style={{ background: chiTwdSpread >= 0 ? "oklch(0.60 0.17 158 / 0.06)" : "oklch(0.55 0.2 25 / 0.06)" }}>
+                          <p className="text-[10px] font-medium text-muted-foreground">
+                            {lang === "zh" ? "每錢利差（賣出 − 買入）" : lang === "en" ? "Spread per chi" : "ChênhLệch/chỉ"}
+                          </p>
+                          <p className="text-sm font-black"
+                            style={{ color: chiTwdSpread >= 0 ? "oklch(0.40 0.18 158)" : "oklch(0.45 0.2 25)" }}>
+                            {chiTwdSpread >= 0 ? "+" : ""}NT${Math.round(chiTwdSpread).toLocaleString()}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

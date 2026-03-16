@@ -175,6 +175,30 @@ describe("Expense Breakdown - sumExpenses", () => {
     expect(result.netProfitUsd).toBeDefined();
   });
 
+  it("should calculate sell price per chi in TWD correctly", () => {
+    const sellVndWan = 1700;    // 1700 萬 VND/錢
+    const rateVndUsd = 26825;   // VND/USD
+    const usdTwdRate = 32;      // USDT/TWD
+    // VND/TWD = 26825 / 32 = 838.28
+    const vndPerTwd = rateVndUsd / usdTwdRate;
+    const sellPerChiTwd = (sellVndWan * 10000) / vndPerTwd;
+    // 17000000 / (26825/32) ≈ 20279.59
+    expect(sellPerChiTwd).toBeCloseTo(20279.59, 1);
+  });
+
+  it("should calculate buy-sell TWD spread correctly", () => {
+    const buyUsdOz = 3000;
+    const sellVndWan = 1700;
+    const rateVndUsd = 26825;
+    const usdTwdRate = 32;
+    const TAEL_PER_OZ = 31.1035 / 3.75;
+    const pricePerChiTwd = buyUsdOz * usdTwdRate / TAEL_PER_OZ; // 買入每錢台幣
+    const vndPerTwd = rateVndUsd / usdTwdRate;
+    const sellPerChiTwd = (sellVndWan * 10000) / vndPerTwd;      // 賣出每錢台幣
+    const spread = sellPerChiTwd - pricePerChiTwd;
+    expect(spread).toBeGreaterThan(0); // 1700萬 VND 在此匯率下應有正利差
+  });
+
   it("should calculate price per chi in TWD correctly", () => {
     const goldPriceUsdOz = 3000;
     const usdTwdRate = 32;
