@@ -455,10 +455,10 @@ export default function Home() {
                   </div>
                   <div className="flex items-center gap-1.5">
                     <button
-                      onClick={() => setWeightG(v => String(Math.max(0, (parseFloat(v) || 0) - 10)))
+                      onClick={() => setWeightG(v => String(Math.max(0, (parseFloat(v) || 0) - 1)))
                       }
                       className="w-10 h-10 rounded-lg border border-border flex items-center justify-center hover:bg-secondary transition-colors flex-shrink-0 text-muted-foreground hover:text-foreground"
-                      title="-10g"
+                      title="-1g"
                     ><Minus className="w-3.5 h-3.5" /></button>
                     <Input
                       type="number"
@@ -468,9 +468,9 @@ export default function Home() {
                       className="bg-input border-border flex-1"
                     />
                     <button
-                      onClick={() => setWeightG(v => String((parseFloat(v) || 0) + 10))}
+                      onClick={() => setWeightG(v => String((parseFloat(v) || 0) + 1))}
                       className="w-10 h-10 rounded-lg border border-border flex items-center justify-center hover:bg-secondary transition-colors flex-shrink-0 text-muted-foreground hover:text-foreground"
-                      title="+10g"
+                      title="+1g"
                     ><Plus className="w-3.5 h-3.5" /></button>
                   </div>
                   {parseFloat(weightG) > 0 && (
