@@ -535,9 +535,7 @@ export default function Home() {
                         <p className="text-xs font-semibold" style={{ color: "oklch(0.40 0.18 158)" }}>
                           {t(lang, "pricePerChiTwd")}
                         </p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {t(lang, "pricePerChiTwdHint")}
-                        </p>
+
                       </div>
                       <div className="text-right">
                         {isBitoFetching ? (
@@ -597,9 +595,7 @@ export default function Home() {
                           <p className="text-xs font-semibold" style={{ color: "oklch(0.35 0.18 170)" }}>
                             {lang === "zh" ? "賣出每台錢台幣" : lang === "en" ? "Sell per Chi (TWD)" : "Bán mỗi chỉ (TWD)"}
                           </p>
-                          <p className="text-[10px] text-muted-foreground">
-                            {lang === "zh" ? "VND賣價 × 10000 ÷ VND/TWD" : lang === "en" ? "VND × 10000 ÷ VND/TWD" : "VND × 10000 ÷ VND/TWD"}
-                          </p>
+
                         </div>
                         <p className="text-lg font-black" style={{ color: "oklch(0.35 0.18 170)" }}>
                           NT${Math.round(sellPerChiTwd).toLocaleString()}
