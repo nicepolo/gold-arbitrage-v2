@@ -264,7 +264,36 @@ export const appRouter = router({
       }
     }),
 
-    // 取得即時 VND/USD 匯率
+    // 取得 HKD/TWD 即時匹率
+    getHkdTwdRate: publicProcedure.query(async () => {
+      try {
+        const res = await fetch(
+          "https://api.exchangerate-api.com/v4/latest/HKD",
+          { signal: AbortSignal.timeout(5000) }
+        );
+        if (!res.ok) throw new Error("API error");
+        const data = await res.json() as { rates: Record<string, number> };
+        const twdRate = data.rates["TWD"];
+        if (!twdRate) throw new Error("TWD rate not found");
+        return { rate: twdRate, source: "exchangerate-api", updatedAt: new Date() };
+      } catch {
+        try {
+          const res2 = await fetch(
+            "https://open.er-api.com/v6/latest/HKD",
+            { signal: AbortSignal.timeout(5000) }
+          );
+          if (!res2.ok) throw new Error("Backup API error");
+          const data2 = await res2.json() as { rates: Record<string, number> };
+          const twdRate2 = data2.rates["TWD"];
+          if (!twdRate2) throw new Error("TWD rate not found");
+          return { rate: twdRate2, source: "open.er-api", updatedAt: new Date() };
+        } catch {
+          return { rate: null, source: "error", updatedAt: new Date() };
+        }
+      }
+    }),
+
+    // 取得即時 VND/USD 匹率
     getExchangeRate: publicProcedure.query(async () => {
       try {
         const res = await fetch(

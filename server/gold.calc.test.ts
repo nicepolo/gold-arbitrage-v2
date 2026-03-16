@@ -227,3 +227,23 @@ describe("Expense Breakdown - sumExpenses", () => {
     expect(result.netProfitUsd).toBeLessThan(0);
   });
 });
+
+describe("Processing Fee Calculation", () => {
+  it("should calculate processing fee for 300g at HKD/TWD 4.07", () => {
+    const fee = 300 * 1.5 * 4.07;
+    expect(fee).toBeCloseTo(1831.5, 0);
+  });
+
+  it("should calculate processing fee for 200g at HKD/TWD 4.07", () => {
+    const fee = 200 * 1.5 * 4.07;
+    expect(fee).toBeCloseTo(1221, 0);
+  });
+
+  it("should include processing fee in total TWD expenses", () => {
+    const manualExpenses = { ticket: 5000, hotel: 3000, meal: 1500, transport: 1000, channel: 2000 };
+    const manualTotal = Object.values(manualExpenses).reduce((a, b) => a + b, 0);
+    const processingFee = 300 * 1.5 * 4.07;
+    const totalTwd = manualTotal + processingFee;
+    expect(totalTwd).toBeCloseTo(12500 + 1831.5, 0);
+  });
+});

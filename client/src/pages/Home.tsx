@@ -162,7 +162,14 @@ export default function Home() {
     }
   }, [c2cData]);
 
-  // BitoEX USDT/TWD 匯率查詢（自動啟動）
+  // HKD/TWD 即時匹率查詢（自動啟動）
+  const { data: hkdTwdData } = trpc.gold.getHkdTwdRate.useQuery(
+    undefined,
+    { enabled: true, retry: false, staleTime: 300000 }
+  );
+  const hkdTwdRate = hkdTwdData?.rate ?? 4.07;
+
+  // BitoEX USDT/TWD 匹率查詢（自動啟動）
   const {
     data: bitoData,
     refetch: refetchBito,
@@ -253,8 +260,15 @@ export default function Home() {
     { refetchOnWindowFocus: false }
   );
 
-  // 開銷合計（TWD）
-  const totalExpenseTwd = Object.values(expenses).reduce((a, b) => a + b, 0);
+  // 加工費自動計算：重量(克) × HK$1.5 × HKD/TWD 即時匹率
+  const processingFeeTwd = useMemo(() => {
+    const w = parseFloat(weightG);
+    if (!w || !hkdTwdRate) return 0;
+    return w * 1.5 * hkdTwdRate;
+  }, [weightG, hkdTwdRate]);
+
+  // 開銷合計（TWD）= 手動輸入 + 加工費
+  const totalExpenseTwd = Object.values(expenses).reduce((a, b) => a + b, 0) + processingFeeTwd;
   // 開銷合計（USD 換算）
   const totalExpenseUsdCalc = usdTwdRate > 0 ? totalExpenseTwd / usdTwdRate : 0;
 
@@ -285,6 +299,7 @@ export default function Home() {
       expenseUsd: 0,
       expenses: {
         ...expenses,
+        processing: processingFeeTwd,
         currency: 'twd' as const,
         usdTwdRate,
       },
@@ -292,7 +307,7 @@ export default function Home() {
       sessionId,
       roiAlertThreshold: 2,
     });
-  }, [buyUsdOz, sellVndWan, rateVndUsd, weightG, expenses, referralPct, sessionId, lang, calcMutation, usdTwdRate]);
+  }, [buyUsdOz, sellVndWan, rateVndUsd, weightG, expenses, referralPct, sessionId, lang, calcMutation, usdTwdRate, processingFeeTwd]);
 
   const handleReset = () => {
     setBuyUsdOz("");
@@ -329,6 +344,7 @@ export default function Home() {
       ...(result.expenseBreakdown.meal ? [`  🍜 餐飲: NT$${result.expenseBreakdown.meal} TWD`] : []),
       ...(result.expenseBreakdown.transport ? [`  🚗 交通: NT$${result.expenseBreakdown.transport} TWD`] : []),
       ...(result.expenseBreakdown.channel ? [`  🔒 通道費: NT$${result.expenseBreakdown.channel} TWD`] : []),
+      ...(processingFeeTwd > 0 ? [`  ⚙️ 加工費: NT$${processingFeeTwd.toFixed(0)} TWD (${parseFloat(weightG)||0}g × HK$1.5 × ${hkdTwdRate.toFixed(2)})`] : []),
       "",
       "利潤計算",
       `毛利: $${(result.totalRevenueUsd - result.totalCostUsd).toFixed(2)} USD`,
@@ -731,6 +747,32 @@ export default function Home() {
                             />
                           </div>
                         ))}
+                      </div>
+
+                      {/* 加工費（唯讀，自動計算） */}
+                      <div className="rounded-lg border border-dashed border-amber-300/60 bg-amber-50/30 dark:bg-amber-900/10 p-2.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-amber-600 dark:text-amber-400">
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                            </span>
+                            <span className="text-xs font-medium text-amber-700 dark:text-amber-300">
+                              {t(lang, "expenseProcessing")}
+                            </span>
+                            <span className="text-[10px] text-amber-600/70 dark:text-amber-400/70">
+                              ({parseFloat(weightG) || 0}g × HK$1.5 × {hkdTwdRate.toFixed(2)})
+                            </span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-sm font-bold text-amber-700 dark:text-amber-300">
+                              NT${processingFeeTwd.toFixed(0)}
+                            </span>
+                            <span className="text-[10px] text-amber-600/60 ml-1">TWD</span>
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-amber-600/60 dark:text-amber-400/50 mt-0.5">
+                          {lang === "zh" ? "自動計算，不可手動輸入" : lang === "en" ? "Auto-calculated, read-only" : "Tự động tính, không nhập thủ công"}
+                        </p>
                       </div>
 
                       {/* Total expense display */}
