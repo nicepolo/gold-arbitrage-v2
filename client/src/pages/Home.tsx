@@ -453,13 +453,26 @@ export default function Home() {
                       </button>
                     ))}
                   </div>
-                  <Input
-                    type="number"
-                    value={weightG}
-                    onChange={(e) => setWeightG(e.target.value)}
-                    placeholder={t(lang, "weightPlaceholder")}
-                    className="bg-input border-border"
-                  />
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setWeightG(v => String(Math.max(0, (parseFloat(v) || 0) - 10)))
+                      }
+                      className="w-10 h-10 rounded-lg border border-border flex items-center justify-center hover:bg-secondary transition-colors flex-shrink-0 text-muted-foreground hover:text-foreground"
+                      title="-10g"
+                    ><Minus className="w-3.5 h-3.5" /></button>
+                    <Input
+                      type="number"
+                      value={weightG}
+                      onChange={(e) => setWeightG(e.target.value)}
+                      placeholder={t(lang, "weightPlaceholder")}
+                      className="bg-input border-border flex-1"
+                    />
+                    <button
+                      onClick={() => setWeightG(v => String((parseFloat(v) || 0) + 10))}
+                      className="w-10 h-10 rounded-lg border border-border flex items-center justify-center hover:bg-secondary transition-colors flex-shrink-0 text-muted-foreground hover:text-foreground"
+                      title="+10g"
+                    ><Plus className="w-3.5 h-3.5" /></button>
+                  </div>
                   {parseFloat(weightG) > 0 && (
                     <p className="text-xs text-muted-foreground mt-1">
                       ≈ {weightOzPreview} oz &nbsp;·&nbsp; {weightChiPreview} {t(lang, "chiUnit")}
@@ -555,6 +568,34 @@ export default function Home() {
                     <p className="text-xs text-muted-foreground mt-1">
                       {t(lang, "currentRate")}: {vndPreview}/{t(lang, "chiUnit")}
                     </p>
+                  )}
+                  {/* 越南賣價下方也顯示每台錢台幣價格 */}
+                  {pricePerChiTwd !== null && (
+                    <div className="mt-2 flex items-center justify-between px-3 py-2 rounded-lg"
+                      style={{ background: "oklch(0.60 0.17 158 / 0.08)", border: "1px solid oklch(0.60 0.17 158 / 0.2)" }}>
+                      <div>
+                        <p className="text-xs font-semibold" style={{ color: "oklch(0.40 0.18 158)" }}>
+                          {t(lang, "pricePerChiTwd")}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {t(lang, "pricePerChiTwdHint")}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        {isBitoFetching ? (
+                          <p className="text-xs text-muted-foreground">{t(lang, "fetchingUsdtTwd")}</p>
+                        ) : (
+                          <>
+                            <p className="text-lg font-black" style={{ color: "oklch(0.40 0.18 158)" }}>
+                              NT${Math.round(pricePerChiTwd).toLocaleString()}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {t(lang, "usdtTwdRate")}: {usdTwdRate}
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </div>
                   )}
                 </div>
 
