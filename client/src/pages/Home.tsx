@@ -175,8 +175,8 @@ export default function Home() {
   // 當 BitoEX 資料更新時，同步更新 usdTwdRate
   useEffect(() => {
     if (bitoData?.adjustedRate && bitoData.adjustedRate > 0) {
-      // 四捨五入到整數
-      setUsdTwdRate(Math.round(bitoData.adjustedRate));
+      // 看小數點第二位四捨五入，保留一位小數
+      setUsdTwdRate(Math.round(bitoData.adjustedRate * 10) / 10);
     }
   }, [bitoData]);
 
@@ -546,7 +546,7 @@ export default function Home() {
                               NT${Math.round(pricePerChiTwd).toLocaleString()}
                             </p>
                             <p className="text-[10px] text-muted-foreground">
-                              {t(lang, "usdtTwdRate")}: {usdTwdRate}
+                              {t(lang, "usdtTwdRate")}: {usdTwdRate.toFixed(1)}
                             </p>
                           </>
                         )}
