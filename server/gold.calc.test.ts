@@ -247,3 +247,99 @@ describe("Processing Fee Calculation", () => {
     expect(totalTwd).toBeCloseTo(12500 + 1831.5, 0);
   });
 });
+
+describe("Channel Settlement - channelSettle Logic", () => {
+  function channelSettle(params: {
+    buyUsdOz: number;
+    sellVndWan: number;
+    rateVndUsd: number;
+    weightG: number;
+    ticketTwd: number;
+    channelFeeTwd: number;
+    processingFeeTwd: number;
+    channelSharePct: number;
+    usdTwdRate: number;
+  }) {
+    const {
+      buyUsdOz, sellVndWan, rateVndUsd, weightG,
+      ticketTwd, channelFeeTwd, processingFeeTwd,
+      channelSharePct, usdTwdRate,
+    } = params;
+
+    const totalDeductTwd = ticketTwd + channelFeeTwd + processingFeeTwd;
+    const totalDeductUsd = totalDeductTwd / usdTwdRate;
+    const weightOz = weightG / G_PER_OZ;
+    const weightChi = weightG / G_PER_CHI;
+    const totalCostUsd = weightOz * buyUsdOz;
+    const totalRevenueVnd = weightChi * (sellVndWan * 10000);
+    const totalRevenueUsd = totalRevenueVnd / rateVndUsd;
+    const netProfitUsd = totalRevenueUsd - totalCostUsd - totalDeductUsd;
+    const netProfitTwd = netProfitUsd * usdTwdRate;
+    const channelShareUsd = netProfitUsd * (channelSharePct / 100);
+    const channelShareTwd = channelShareUsd * usdTwdRate;
+    const channelTotalUsd = (channelFeeTwd / usdTwdRate) + channelShareUsd;
+    const channelTotalTwd = channelFeeTwd + channelShareTwd;
+    const runnerShareUsd = netProfitUsd * (1 - channelSharePct / 100);
+    const runnerShareTwd = runnerShareUsd * usdTwdRate;
+    const breakEvenRevUsd = totalCostUsd + totalDeductUsd;
+    const breakEvenRevVnd = breakEvenRevUsd * rateVndUsd;
+    const breakEvenSellVndWan = breakEvenRevVnd / weightChi / 10000;
+    return {
+      totalDeductTwd, totalDeductUsd, netProfitUsd, netProfitTwd,
+      channelShareTwd, channelTotalTwd, runnerShareTwd, breakEvenSellVndWan,
+      roi: (netProfitUsd / totalCostUsd) * 100,
+    };
+  }
+
+  const BASE = {
+    buyUsdOz: 4985.02,
+    sellVndWan: 1700,
+    rateVndUsd: 27440,
+    weightG: 298,
+    ticketTwd: 13000,
+    channelFeeTwd: 5000,
+    processingFeeTwd: 298 * 1.5 * 4.07,
+    channelSharePct: 5,
+    usdTwdRate: 32.2,
+  };
+
+  it("should correctly sum three deductions", () => {
+    const result = channelSettle(BASE);
+    const expectedDeductTwd = BASE.ticketTwd + BASE.channelFeeTwd + BASE.processingFeeTwd;
+    expect(result.totalDeductTwd).toBeCloseTo(expectedDeductTwd, 1);
+  });
+
+  it("channel total = channelFee + netProfit * pct", () => {
+    const result = channelSettle(BASE);
+    const expectedChannelShare = result.netProfitTwd * (BASE.channelSharePct / 100);
+    const expectedChannelTotal = BASE.channelFeeTwd + expectedChannelShare;
+    expect(result.channelTotalTwd).toBeCloseTo(expectedChannelTotal, 1);
+  });
+
+  it("runner share = netProfit * (1 - pct)", () => {
+    const result = channelSettle(BASE);
+    const expectedRunner = result.netProfitTwd * (1 - BASE.channelSharePct / 100);
+    expect(result.runnerShareTwd).toBeCloseTo(expectedRunner, 1);
+  });
+
+  it("channel + runner should equal netProfit + channelFee", () => {
+    const result = channelSettle(BASE);
+    // channelTotal = channelFee + netProfit*pct
+    // runner = netProfit*(1-pct)
+    // sum = channelFee + netProfit
+    expect(result.channelTotalTwd + result.runnerShareTwd).toBeCloseTo(
+      BASE.channelFeeTwd + result.netProfitTwd, 1
+    );
+  });
+
+  it("zero channelSharePct means channel only gets channelFee", () => {
+    const result = channelSettle({ ...BASE, channelSharePct: 0 });
+    expect(result.channelTotalTwd).toBeCloseTo(BASE.channelFeeTwd, 1);
+    expect(result.runnerShareTwd).toBeCloseTo(result.netProfitTwd, 1);
+  });
+
+  it("100% channelSharePct means runner gets nothing", () => {
+    const result = channelSettle({ ...BASE, channelSharePct: 100 });
+    expect(result.runnerShareTwd).toBeCloseTo(0, 1);
+  });
+});

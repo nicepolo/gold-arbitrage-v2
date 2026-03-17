@@ -419,6 +419,78 @@ export const appRouter = router({
         };
       }),
 
+    // 通道結算計算
+    channelSettle: publicProcedure
+      .input(z.object({
+        buyUsdOz: z.number().positive(),
+        sellVndWan: z.number().positive(),
+        rateVndUsd: z.number().positive(),
+        weightG: z.number().positive().default(300),
+        ticketTwd: z.number().min(0).default(0),      // 機票費（TWD）
+        channelFeeTwd: z.number().min(0).default(0),  // 通道費（TWD）
+        processingFeeTwd: z.number().min(0).default(0), // 加工費（TWD，自動計算）
+        channelSharePct: z.number().min(0).max(100).default(5), // 通道方分成比例（%）
+        usdTwdRate: z.number().positive().default(32),
+      }))
+      .mutation(({ input }) => {
+        const {
+          buyUsdOz, sellVndWan, rateVndUsd, weightG,
+          ticketTwd, channelFeeTwd, processingFeeTwd,
+          channelSharePct, usdTwdRate,
+        } = input;
+
+        // 三項公認開銷（TWD → USD）
+        const totalDeductTwd = ticketTwd + channelFeeTwd + processingFeeTwd;
+        const totalDeductUsd = totalDeductTwd / usdTwdRate;
+
+        // 基本套利計算
+        const weightOz = weightG / G_PER_OZ;
+        const weightChi = weightG / G_PER_CHI;
+        const totalCostUsd = weightOz * buyUsdOz;
+        const totalRevenueVnd = weightChi * (sellVndWan * 10000);
+        const totalRevenueUsd = totalRevenueVnd / rateVndUsd;
+
+        // 淨利 = 總營收 - 購買成本 - 三項開銷
+        const netProfitUsd = totalRevenueUsd - totalCostUsd - totalDeductUsd;
+        const netProfitTwd = netProfitUsd * usdTwdRate;
+
+        // 通道方應收：通道費 + 淨利 × 分成比例
+        const channelShareUsd = netProfitUsd * (channelSharePct / 100);
+        const channelShareTwd = channelShareUsd * usdTwdRate;
+        const channelTotalUsd = (channelFeeTwd / usdTwdRate) + channelShareUsd;
+        const channelTotalTwd = channelFeeTwd + channelShareTwd;
+
+        // 跑腿應得：淨利 × (1 - 分成比例)
+        const runnerShareUsd = netProfitUsd * (1 - channelSharePct / 100);
+        const runnerShareTwd = runnerShareUsd * usdTwdRate;
+
+        // 保本賣價
+        const breakEvenRevUsd = totalCostUsd + totalDeductUsd;
+        const breakEvenRevVnd = breakEvenRevUsd * rateVndUsd;
+        const breakEvenSellVndWan = breakEvenRevVnd / weightChi / 10000;
+
+        return {
+          weightOz,
+          weightChi,
+          totalCostUsd,
+          totalRevenueUsd,
+          totalDeductTwd,
+          totalDeductUsd,
+          netProfitUsd,
+          netProfitTwd,
+          channelFeeTwd,
+          channelSharePct,
+          channelShareUsd,
+          channelShareTwd,
+          channelTotalUsd,
+          channelTotalTwd,
+          runnerShareUsd,
+          runnerShareTwd,
+          breakEvenSellVndWan,
+          roi: (netProfitUsd / totalCostUsd) * 100,
+        };
+      }),
+
     // 取得歷史記錄
     getHistory: publicProcedure
       .input(z.object({ sessionId: z.string() }))
