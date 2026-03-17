@@ -7,14 +7,13 @@ import {
   TrendingUp,
   Calculator,
   RefreshCw,
-  Coins,
-  Plane,
   Lock,
   Plus,
   Minus,
   Copy,
   UserCheck,
   ArrowLeft,
+  Plane,
 } from "lucide-react";
 import { useState, useCallback, useMemo } from "react";
 import { Link } from "wouter";
@@ -29,18 +28,19 @@ export default function ChannelSettle() {
   const [csBuyUsdOz, setCsBuyUsdOz] = useState("");
   const [csSellVndWan, setCsSellVndWan] = useState("");
   const [csRateVndUsd, setCsRateVndUsd] = useState("");
-  const [csTicketTwd, setCsTicketTwd] = useState("");
   const [csChannelFeeTwd, setCsChannelFeeTwd] = useState("");
+  const [csTicketTwd, setCsTicketTwd] = useState("");
   const [csChannelSharePct, setCsChannelSharePct] = useState("");
   const [csResult, setCsResult] = useState<null | {
     weightOz: number; weightChi: number;
     totalCostUsd: number; totalRevenueUsd: number;
-    totalDeductTwd: number; totalDeductUsd: number;
+    processingFeeTwd: number; ticketTwd: number;
     netProfitUsd: number; netProfitTwd: number;
+    grossProfitUsd: number; grossProfitTwd: number;
     channelFeeTwd: number; channelSharePct: number;
     channelShareUsd: number; channelShareTwd: number;
     channelTotalUsd: number; channelTotalTwd: number;
-    runnerShareUsd: number; runnerShareTwd: number;
+    customerShareUsd: number; customerShareTwd: number;
     breakEvenSellVndWan: number; roi: number;
   }>(null);
 
@@ -97,13 +97,13 @@ export default function ChannelSettle() {
       sellVndWan: sell,
       rateVndUsd: rate,
       weightG: weight,
-      ticketTwd: parseFloat(csTicketTwd) || 0,
       channelFeeTwd: parseFloat(csChannelFeeTwd) || 0,
       processingFeeTwd: csProcessingFeeTwd,
+      ticketTwd: parseFloat(csTicketTwd) || 0,
       channelSharePct: sharePct,
       usdTwdRate,
     });
-  }, [csBuyUsdOz, csSellVndWan, csRateVndUsd, csWeightG, csTicketTwd, csChannelFeeTwd, csChannelSharePct, csProcessingFeeTwd, usdTwdRate, channelSettleMutation]);
+  }, [csBuyUsdOz, csSellVndWan, csRateVndUsd, csWeightG, csChannelFeeTwd, csTicketTwd, csChannelSharePct, csProcessingFeeTwd, usdTwdRate, channelSettleMutation]);
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
@@ -135,7 +135,7 @@ export default function ChannelSettle() {
                 通道結算
               </h1>
               <p className="text-xs text-muted-foreground mt-0.5 hidden sm:block">
-                僅計公認三項開銷：通道費、加工費、機票
+                淨利 = 營收 - 成本 - 加工費 - 機票費
               </p>
             </div>
           </div>
@@ -161,7 +161,7 @@ export default function ChannelSettle() {
                 <h2 className="text-base font-semibold">結算參數</h2>
               </div>
               <p className="text-xs text-muted-foreground mb-5">
-                僅計公認三項開銷：通道費、加工費、機票
+                淨利 = 總營收 − 購買成本 − 加工費 − 機票費
               </p>
 
               <div className="space-y-4">
@@ -202,7 +202,7 @@ export default function ChannelSettle() {
                 <div>
                   <Label className="text-xs font-medium text-muted-foreground mb-1.5 block">香港買價 (USD/oz)</Label>
                   <Input type="number" value={csBuyUsdOz} onChange={e => setCsBuyUsdOz(e.target.value)}
-                    placeholder="e.g. 5298.5" className="bg-input border-border" />
+                    placeholder="e.g. 4985" className="bg-input border-border" />
                 </div>
 
                 {/* Sell price */}
@@ -214,7 +214,7 @@ export default function ChannelSettle() {
                       <Minus className="w-3.5 h-3.5" />
                     </button>
                     <Input type="number" value={csSellVndWan} onChange={e => setCsSellVndWan(e.target.value)}
-                      placeholder="e.g. 1767" className="bg-input border-border flex-1" />
+                      placeholder="e.g. 1700" className="bg-input border-border flex-1" />
                     <button onClick={() => setCsSellVndWan(v => String((parseFloat(v)||0)+1))}
                       className="w-10 h-10 rounded-full border border-border flex items-center justify-center hover:bg-secondary transition-colors flex-shrink-0 text-muted-foreground hover:text-foreground">
                       <Plus className="w-3.5 h-3.5" />
@@ -226,21 +226,13 @@ export default function ChannelSettle() {
                 <div>
                   <Label className="text-xs font-medium text-muted-foreground mb-1.5 block">匯率 (VND/USD)</Label>
                   <Input type="number" value={csRateVndUsd} onChange={e => setCsRateVndUsd(e.target.value)}
-                    placeholder="e.g. 26825" className="bg-input border-border" />
+                    placeholder="e.g. 27440" className="bg-input border-border" />
                 </div>
 
-                {/* 三項開銷 */}
+                {/* 開銷區塊 */}
                 <div className="border-t border-border/60 pt-4">
-                  <p className="text-xs font-semibold text-muted-foreground mb-3">公認開銷（TWD）</p>
+                  <p className="text-xs font-semibold text-muted-foreground mb-3">開銷（TWD）</p>
                   <div className="space-y-3">
-                    {/* 機票 */}
-                    <div>
-                      <Label className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
-                        <Plane className="w-3.5 h-3.5 text-sky-500" />機票費用 TWD
-                      </Label>
-                      <Input type="number" value={csTicketTwd} onChange={e => setCsTicketTwd(e.target.value)}
-                        placeholder="0" className="bg-input border-border" />
-                    </div>
                     {/* 通道費 */}
                     <div>
                       <Label className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
@@ -249,6 +241,7 @@ export default function ChannelSettle() {
                       <Input type="number" value={csChannelFeeTwd} onChange={e => setCsChannelFeeTwd(e.target.value)}
                         placeholder="0" className="bg-input border-border" />
                     </div>
+
                     {/* 加工費（唯讀） */}
                     <div>
                       <Label className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
@@ -260,11 +253,21 @@ export default function ChannelSettle() {
                         <span className="text-xs ml-2">({parseFloat(csWeightG)||0}g × HK$1.5 × {hkdTwdRate.toFixed(2)})</span>
                       </div>
                     </div>
+
+                    {/* 機票費 */}
+                    <div>
+                      <Label className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
+                        <Plane className="w-3.5 h-3.5 text-blue-500" />機票費 TWD
+                      </Label>
+                      <Input type="number" value={csTicketTwd} onChange={e => setCsTicketTwd(e.target.value)}
+                        placeholder="0" className="bg-input border-border" />
+                    </div>
                   </div>
-                  {/* 開銷小計 */}
+
+                  {/* 開銷小計（不含通道費，通道費在分配時才計算） */}
                   <div className="mt-3 flex justify-between text-xs text-muted-foreground border-t border-border/40 pt-2">
-                    <span>公認開銷合計</span>
-                    <span className="font-medium">NT${((parseFloat(csTicketTwd)||0) + (parseFloat(csChannelFeeTwd)||0) + csProcessingFeeTwd).toFixed(0)}</span>
+                    <span>扣淨利開銷（加工+機票）</span>
+                    <span className="font-medium">NT${(csProcessingFeeTwd + (parseFloat(csTicketTwd)||0)).toFixed(0)}</span>
                   </div>
                 </div>
 
@@ -320,7 +323,7 @@ export default function ChannelSettle() {
                     borderColor: csResult.netProfitTwd >= 0 ? "oklch(0.60 0.17 158 / 0.25)" : "oklch(0.60 0.18 25 / 0.25)",
                     border: "1px solid"
                   }}>
-                    <p className="text-xs text-muted-foreground mb-1">淨利（扣除三項公認開銷後）</p>
+                    <p className="text-xs text-muted-foreground mb-1">淨利（總營收 − 購買成本 − 加工費 − 機票費）</p>
                     <div className="flex items-baseline gap-3">
                       <span className="text-3xl font-bold" style={{ color: csResult.netProfitTwd >= 0 ? "oklch(0.45 0.17 158)" : "oklch(0.55 0.22 25)" }}>
                         NT${csResult.netProfitTwd.toLocaleString("zh-TW", { maximumFractionDigits: 0 })}
@@ -359,15 +362,19 @@ export default function ChannelSettle() {
                       background: "linear-gradient(135deg, oklch(0.60 0.17 158 / 0.08), oklch(0.50 0.19 170 / 0.06))",
                       borderColor: "oklch(0.60 0.17 158 / 0.25)"
                     }}>
-                      <p className="text-xs font-medium mb-2" style={{ color: "oklch(0.50 0.17 158)" }}>客戶應得</p>
+                      <p className="text-xs font-medium mb-2" style={{ color: "oklch(0.50 0.17 158)" }}>回給客戶</p>
                       <p className="text-xl font-bold" style={{ color: "oklch(0.45 0.17 158)" }}>
-                        NT${csResult.runnerShareTwd.toLocaleString("zh-TW", { maximumFractionDigits: 0 })}
+                        NT${csResult.customerShareTwd.toLocaleString("zh-TW", { maximumFractionDigits: 0 })}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-1">≈ ${csResult.runnerShareUsd.toFixed(2)} USD</p>
-                      <div className="mt-2 pt-2 border-t border-border/40">
+                      <p className="text-xs text-muted-foreground mt-1">≈ ${csResult.customerShareUsd.toFixed(2)} USD</p>
+                      <div className="mt-2 pt-2 border-t border-border/40 space-y-1">
                         <div className="flex justify-between text-xs text-muted-foreground">
                           <span>淨利 {(100 - csResult.channelSharePct)}%</span>
-                          <span>NT${csResult.runnerShareTwd.toLocaleString("zh-TW", { maximumFractionDigits: 0 })}</span>
+                          <span>NT${(csResult.netProfitTwd * (1 - csResult.channelSharePct / 100)).toLocaleString("zh-TW", { maximumFractionDigits: 0 })}</span>
+                        </div>
+                        <div className="flex justify-between text-xs text-rose-500">
+                          <span>扣通道費</span>
+                          <span>-NT${csResult.channelFeeTwd.toLocaleString("zh-TW", { maximumFractionDigits: 0 })}</span>
                         </div>
                       </div>
                     </div>
@@ -386,15 +393,23 @@ export default function ChannelSettle() {
                       <span className="text-muted-foreground">購買成本</span>
                       <span>-${csResult.totalCostUsd.toFixed(2)} USD</span>
                     </div>
-                    <div className="flex justify-between text-rose-500">
-                      <span>公認開銷合計</span>
-                      <span>-NT${csResult.totalDeductTwd.toLocaleString("zh-TW", { maximumFractionDigits: 0 })} (≈ -${csResult.totalDeductUsd.toFixed(2)} USD)</span>
+                    <div className="flex justify-between text-orange-500">
+                      <span>加工費</span>
+                      <span>-NT${csResult.processingFeeTwd.toLocaleString("zh-TW", { maximumFractionDigits: 0 })} TWD</span>
+                    </div>
+                    <div className="flex justify-between text-blue-500">
+                      <span>機票費</span>
+                      <span>-NT${csResult.ticketTwd.toLocaleString("zh-TW", { maximumFractionDigits: 0 })} TWD</span>
                     </div>
                     <div className="border-t border-border/60 pt-2 flex justify-between font-semibold">
                       <span>淨利</span>
                       <span style={{ color: csResult.netProfitTwd >= 0 ? "oklch(0.45 0.17 158)" : "oklch(0.55 0.22 25)" }}>
                         NT${csResult.netProfitTwd.toLocaleString("zh-TW", { maximumFractionDigits: 0 })}
                       </span>
+                    </div>
+                    <div className="flex justify-between text-rose-500 text-xs">
+                      <span>分配通道費</span>
+                      <span>-NT${csResult.channelFeeTwd.toLocaleString("zh-TW", { maximumFractionDigits: 0 })} TWD</span>
                     </div>
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>保本賣價</span>
@@ -417,21 +432,22 @@ export default function ChannelSettle() {
                       `匯率: ${csRateVndUsd} VND/USD`,
                       `USDT/TWD: ${usdTwdRate}`,
                       "",
-                      "公認開銷",
-                      `  ✈️ 機票: NT$${parseFloat(csTicketTwd)||0} TWD`,
-                      `  🔒 通道費: NT$${parseFloat(csChannelFeeTwd)||0} TWD`,
+                      "開銷明細",
                       `  ⚙️ 加工費: NT$${csProcessingFeeTwd.toFixed(0)} TWD`,
-                      `  合計: NT$${csResult.totalDeductTwd.toLocaleString("zh-TW", { maximumFractionDigits: 0 })} TWD`,
+                      `  ✈️ 機票費: NT$${parseFloat(csTicketTwd)||0} TWD`,
+                      `  🔒 通道費: NT$${parseFloat(csChannelFeeTwd)||0} TWD（分配時扣）`,
                       "",
                       "結算明細",
                       `總營收: $${csResult.totalRevenueUsd.toFixed(2)} USD`,
                       `購買成本: $${csResult.totalCostUsd.toFixed(2)} USD`,
+                      `加工費: -NT$${csResult.processingFeeTwd.toLocaleString("zh-TW", { maximumFractionDigits: 0 })} TWD`,
+                      `機票費: -NT$${csResult.ticketTwd.toLocaleString("zh-TW", { maximumFractionDigits: 0 })} TWD`,
                       `淨利: NT$${csResult.netProfitTwd.toLocaleString("zh-TW", { maximumFractionDigits: 0 })} (≈ $${csResult.netProfitUsd.toFixed(2)} USD)`,
                       `ROI: ${csResult.roi.toFixed(2)}%`,
                       "",
                       "分配結果",
                       `通道方應收: NT$${csResult.channelTotalTwd.toLocaleString("zh-TW", { maximumFractionDigits: 0 })} (通道費 NT$${csResult.channelFeeTwd} + 淨利${csResult.channelSharePct}% NT$${csResult.channelShareTwd.toLocaleString("zh-TW", { maximumFractionDigits: 0 })})`,
-                      `客戶應得: NT$${csResult.runnerShareTwd.toLocaleString("zh-TW", { maximumFractionDigits: 0 })} (淨利${100-csResult.channelSharePct}%)`,
+                      `回給客戶: NT$${csResult.customerShareTwd.toLocaleString("zh-TW", { maximumFractionDigits: 0 })} (淨利${100-csResult.channelSharePct}% - 通道費 NT$${csResult.channelFeeTwd})`,
                       `保本賣價: ${csResult.breakEvenSellVndWan.toFixed(2)} 萬 VND/錢`,
                       "",
                       `計算時間: ${new Date().toLocaleString("zh-TW")}`,
@@ -452,20 +468,6 @@ export default function ChannelSettle() {
           </div>
         </div>
       </main>
-
-      {/* Footer */}
-      <footer className="relative z-10 border-t border-border/60 mt-8">
-        <div className="container py-4 flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">
-            通道結算 · 僅供參考，不構成投資建議
-          </p>
-          <div className="flex items-center gap-1.5">
-            <div className="w-1.5 h-1.5 rounded-full animate-pulse"
-              style={{ background: "oklch(0.55 0.20 45)" }} />
-            <span className="text-xs text-muted-foreground">Live</span>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

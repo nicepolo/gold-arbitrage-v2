@@ -249,6 +249,9 @@ describe("Processing Fee Calculation", () => {
 });
 
 describe("Channel Settlement - channelSettle Logic", () => {
+  // 新公式：淨利 = 營收 - 成本 - 加工費 - 機票費
+  // 通道方應收 = 通道費 + 淨利 × %
+  // 回給客戶 = 淨利 × (1 - %) - 通道費
   function channelSettle(params: {
     buyUsdOz: number;
     sellVndWan: number;
@@ -266,47 +269,60 @@ describe("Channel Settlement - channelSettle Logic", () => {
       channelSharePct, usdTwdRate,
     } = params;
 
-    const totalDeductTwd = ticketTwd + channelFeeTwd + processingFeeTwd;
-    const totalDeductUsd = totalDeductTwd / usdTwdRate;
     const weightOz = weightG / G_PER_OZ;
     const weightChi = weightG / G_PER_CHI;
     const totalCostUsd = weightOz * buyUsdOz;
     const totalRevenueVnd = weightChi * (sellVndWan * 10000);
     const totalRevenueUsd = totalRevenueVnd / rateVndUsd;
-    const netProfitUsd = totalRevenueUsd - totalCostUsd - totalDeductUsd;
+
+    // 淨利 = 總營收 - 購買成本 - 加工費 - 機票費
+    const processingFeeUsd = processingFeeTwd / usdTwdRate;
+    const ticketUsd = ticketTwd / usdTwdRate;
+    const netProfitUsd = totalRevenueUsd - totalCostUsd - processingFeeUsd - ticketUsd;
     const netProfitTwd = netProfitUsd * usdTwdRate;
+
+    // 通道方應收 = 通道費 + 淨利 × 分成比例
     const channelShareUsd = netProfitUsd * (channelSharePct / 100);
     const channelShareTwd = channelShareUsd * usdTwdRate;
     const channelTotalUsd = (channelFeeTwd / usdTwdRate) + channelShareUsd;
     const channelTotalTwd = channelFeeTwd + channelShareTwd;
-    const runnerShareUsd = netProfitUsd * (1 - channelSharePct / 100);
-    const runnerShareTwd = runnerShareUsd * usdTwdRate;
-    const breakEvenRevUsd = totalCostUsd + totalDeductUsd;
+
+    // 回給客戶 = 淨利 × (1 - 分成比例) - 通道費
+    const customerShareTwd = netProfitTwd * (1 - channelSharePct / 100) - channelFeeTwd;
+    const customerShareUsd = customerShareTwd / usdTwdRate;
+
+    const breakEvenRevUsd = totalCostUsd + processingFeeUsd + ticketUsd;
     const breakEvenRevVnd = breakEvenRevUsd * rateVndUsd;
     const breakEvenSellVndWan = breakEvenRevVnd / weightChi / 10000;
+
     return {
-      totalDeductTwd, totalDeductUsd, netProfitUsd, netProfitTwd,
-      channelShareTwd, channelTotalTwd, runnerShareTwd, breakEvenSellVndWan,
+      netProfitUsd, netProfitTwd,
+      channelShareTwd, channelTotalTwd,
+      customerShareTwd, customerShareUsd,
+      breakEvenSellVndWan,
       roi: (netProfitUsd / totalCostUsd) * 100,
     };
   }
 
   const BASE = {
-    buyUsdOz: 4985.02,
+    buyUsdOz: 4985,
     sellVndWan: 1700,
     rateVndUsd: 27440,
     weightG: 298,
-    ticketTwd: 13000,
+    ticketTwd: 12500,
     channelFeeTwd: 5000,
     processingFeeTwd: 298 * 1.5 * 4.07,
     channelSharePct: 5,
-    usdTwdRate: 32.2,
+    usdTwdRate: 32.0,
   };
 
-  it("should correctly sum three deductions", () => {
-    const result = channelSettle(BASE);
-    const expectedDeductTwd = BASE.ticketTwd + BASE.channelFeeTwd + BASE.processingFeeTwd;
-    expect(result.totalDeductTwd).toBeCloseTo(expectedDeductTwd, 1);
+  it("netProfit should include ticket deduction", () => {
+    const withTicket = channelSettle(BASE);
+    const withoutTicket = channelSettle({ ...BASE, ticketTwd: 0 });
+    // 淨利應比不含機票的版本小
+    expect(withTicket.netProfitTwd).toBeLessThan(withoutTicket.netProfitTwd);
+    // 差値等於機票費
+    expect(withoutTicket.netProfitTwd - withTicket.netProfitTwd).toBeCloseTo(BASE.ticketTwd, 0);
   });
 
   it("channel total = channelFee + netProfit * pct", () => {
@@ -316,30 +332,39 @@ describe("Channel Settlement - channelSettle Logic", () => {
     expect(result.channelTotalTwd).toBeCloseTo(expectedChannelTotal, 1);
   });
 
-  it("runner share = netProfit * (1 - pct)", () => {
+  it("customer share = netProfit * (1 - pct) - channelFee", () => {
     const result = channelSettle(BASE);
-    const expectedRunner = result.netProfitTwd * (1 - BASE.channelSharePct / 100);
-    expect(result.runnerShareTwd).toBeCloseTo(expectedRunner, 1);
+    const expectedCustomer = result.netProfitTwd * (1 - BASE.channelSharePct / 100) - BASE.channelFeeTwd;
+    expect(result.customerShareTwd).toBeCloseTo(expectedCustomer, 1);
   });
 
-  it("channel + runner should equal netProfit + channelFee", () => {
+  it("channel + customer should equal netProfit + channelFee - channelFee = netProfit", () => {
     const result = channelSettle(BASE);
     // channelTotal = channelFee + netProfit*pct
-    // runner = netProfit*(1-pct)
-    // sum = channelFee + netProfit
-    expect(result.channelTotalTwd + result.runnerShareTwd).toBeCloseTo(
-      BASE.channelFeeTwd + result.netProfitTwd, 1
-    );
+    // customerShare = netProfit*(1-pct) - channelFee
+    // sum = netProfit
+    expect(result.channelTotalTwd + result.customerShareTwd).toBeCloseTo(result.netProfitTwd, 1);
   });
 
   it("zero channelSharePct means channel only gets channelFee", () => {
     const result = channelSettle({ ...BASE, channelSharePct: 0 });
     expect(result.channelTotalTwd).toBeCloseTo(BASE.channelFeeTwd, 1);
-    expect(result.runnerShareTwd).toBeCloseTo(result.netProfitTwd, 1);
+    expect(result.customerShareTwd).toBeCloseTo(result.netProfitTwd - BASE.channelFeeTwd, 1);
   });
 
-  it("100% channelSharePct means runner gets nothing", () => {
+  it("100% channelSharePct means customer gets negative (only channelFee deducted)", () => {
     const result = channelSettle({ ...BASE, channelSharePct: 100 });
-    expect(result.runnerShareTwd).toBeCloseTo(0, 1);
+    // 客戶得到 = 淨利*0% - 通道費 = -通道費
+    expect(result.customerShareTwd).toBeCloseTo(-BASE.channelFeeTwd, 1);
+  });
+
+  it("real example: 298g buy 4985 sell 1700 ticket 12500 channel 5000 5pct", () => {
+    const result = channelSettle(BASE);
+    // 預期淨利約 NT$32,766
+    expect(result.netProfitTwd).toBeCloseTo(32766, -2);
+    // 通道方應收 = 5000 + 32766*5% = 5000 + 1638 = 6638
+    expect(result.channelTotalTwd).toBeCloseTo(6638, -1);
+    // 回給客戶 = 32766*95% - 5000 = 31127 - 5000 = 26127
+    expect(result.customerShareTwd).toBeCloseTo(26127, -1);
   });
 });

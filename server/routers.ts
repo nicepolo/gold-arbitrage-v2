@@ -426,22 +426,18 @@ export const appRouter = router({
         sellVndWan: z.number().positive(),
         rateVndUsd: z.number().positive(),
         weightG: z.number().positive().default(300),
-        ticketTwd: z.number().min(0).default(0),      // 機票費（TWD）
-        channelFeeTwd: z.number().min(0).default(0),  // 通道費（TWD）
+        channelFeeTwd: z.number().min(0).default(0),    // 通道費（TWD）
         processingFeeTwd: z.number().min(0).default(0), // 加工費（TWD，自動計算）
-        channelSharePct: z.number().min(0).max(100).default(5), // 通道方分成比例（%）
+        ticketTwd: z.number().min(0).default(0),        // 機票費（TWD，客戶填入）
+        channelSharePct: z.number().min(0).max(100),    // 通道方分成比例（%，必填）
         usdTwdRate: z.number().positive().default(32),
       }))
       .mutation(({ input }) => {
         const {
           buyUsdOz, sellVndWan, rateVndUsd, weightG,
-          ticketTwd, channelFeeTwd, processingFeeTwd,
+          channelFeeTwd, processingFeeTwd, ticketTwd,
           channelSharePct, usdTwdRate,
         } = input;
-
-        // 三項公認開銷（TWD → USD）
-        const totalDeductTwd = ticketTwd + channelFeeTwd + processingFeeTwd;
-        const totalDeductUsd = totalDeductTwd / usdTwdRate;
 
         // 基本套利計算
         const weightOz = weightG / G_PER_OZ;
@@ -450,22 +446,25 @@ export const appRouter = router({
         const totalRevenueVnd = weightChi * (sellVndWan * 10000);
         const totalRevenueUsd = totalRevenueVnd / rateVndUsd;
 
-        // 淨利 = 總營收 - 購買成本 - 三項開銷
-        const netProfitUsd = totalRevenueUsd - totalCostUsd - totalDeductUsd;
+        // 淨利 = 總營收 - 購買成本 - 加工費 - 機票費
+        // （通道費不計入淨利，在分配時才扣）
+        const processingFeeUsd = processingFeeTwd / usdTwdRate;
+        const ticketUsd = ticketTwd / usdTwdRate;
+        const netProfitUsd = totalRevenueUsd - totalCostUsd - processingFeeUsd - ticketUsd;
         const netProfitTwd = netProfitUsd * usdTwdRate;
 
-        // 通道方應收：通道費 + 淨利 × 分成比例
+        // 通道方應收 = 通道費 + 淨利 × 分成比例
         const channelShareUsd = netProfitUsd * (channelSharePct / 100);
         const channelShareTwd = channelShareUsd * usdTwdRate;
         const channelTotalUsd = (channelFeeTwd / usdTwdRate) + channelShareUsd;
         const channelTotalTwd = channelFeeTwd + channelShareTwd;
 
-        // 跑腿應得：淨利 × (1 - 分成比例)
-        const runnerShareUsd = netProfitUsd * (1 - channelSharePct / 100);
-        const runnerShareTwd = runnerShareUsd * usdTwdRate;
+        // 回給客戶 = 淨利 × (1 - 分成比例) - 通道費
+        const customerShareUsd = netProfitUsd * (1 - channelSharePct / 100) - (channelFeeTwd / usdTwdRate);
+        const customerShareTwd = netProfitTwd * (1 - channelSharePct / 100) - channelFeeTwd;
 
-        // 保本賣價
-        const breakEvenRevUsd = totalCostUsd + totalDeductUsd;
+        // 保本賣價（扣除加工費 + 機票費後）
+        const breakEvenRevUsd = totalCostUsd + processingFeeUsd + ticketUsd;
         const breakEvenRevVnd = breakEvenRevUsd * rateVndUsd;
         const breakEvenSellVndWan = breakEvenRevVnd / weightChi / 10000;
 
@@ -474,18 +473,21 @@ export const appRouter = router({
           weightChi,
           totalCostUsd,
           totalRevenueUsd,
-          totalDeductTwd,
-          totalDeductUsd,
+          processingFeeTwd,
+          ticketTwd,
           netProfitUsd,
           netProfitTwd,
+          // 向後相容：保留 grossProfit 欄位名稱指向 netProfit
+          grossProfitUsd: netProfitUsd,
+          grossProfitTwd: netProfitTwd,
           channelFeeTwd,
           channelSharePct,
           channelShareUsd,
           channelShareTwd,
           channelTotalUsd,
           channelTotalTwd,
-          runnerShareUsd,
-          runnerShareTwd,
+          customerShareUsd,
+          customerShareTwd,
           breakEvenSellVndWan,
           roi: (netProfitUsd / totalCostUsd) * 100,
         };
