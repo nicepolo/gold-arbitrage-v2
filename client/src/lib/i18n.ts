@@ -58,7 +58,7 @@ export const translations = {
     // 新增：每台錢台幣價格
     pricePerChiTwd: "每台錢台幣價格",
     pricePerChiTwdUnit: "TWD/錢",
-    pricePerChiTwdHint: "金價 × USDT/TWD ÷ 8.294",
+    pricePerChiTwdHint: "金價(USD/oz) × USDT/TWD ÷ 8.2943",
     fetchingUsdtTwd: "取得幣託匯率中...",
     usdtTwdRate: "USDT/TWD 匯率",
     // 開銷貨幣提示
@@ -123,7 +123,7 @@ export const translations = {
     // New: price per chi in TWD
     pricePerChiTwd: "Price per Chi (TWD)",
     pricePerChiTwdUnit: "TWD/chi",
-    pricePerChiTwdHint: "Gold Price × USDT/TWD ÷ 8.294",
+    pricePerChiTwdHint: "Gold Price(USD/oz) × USDT/TWD ÷ 8.2943",
     fetchingUsdtTwd: "Fetching BitoEX rate...",
     usdtTwdRate: "USDT/TWD Rate",
     // Expense currency hint
@@ -188,7 +188,7 @@ export const translations = {
     // Mới: giá mỗi chỉ bằng TWD
     pricePerChiTwd: "Giá mỗi chỉ (TWD)",
     pricePerChiTwdUnit: "TWD/chỉ",
-    pricePerChiTwdHint: "Giá vàng × USDT/TWD ÷ 8.294",
+    pricePerChiTwdHint: "Giá vàng(USD/oz) × USDT/TWD ÷ 8.2943",
     fetchingUsdtTwd: "Đang lấy tỷ giá BitoEX...",
     usdtTwdRate: "Tỷ giá USDT/TWD",
     // Gợi ý tiền tệ chi phí
