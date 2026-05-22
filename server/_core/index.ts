@@ -28,15 +28,18 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function runMigrations() {
+  const dbUrl = process.env.DATABASE_URL;
+  console.log("[Debug] DATABASE_URL set:", !!dbUrl, dbUrl ? `(starts with: ${dbUrl.substring(0, 20)}...)` : "(empty)");
+  const allEnvKeys = Object.keys(process.env).filter(k => k.includes("MYSQL") || k.includes("DATABASE") || k.includes("DB_"));
+  console.log("[Debug] DB-related env vars:", allEnvKeys);
+  if (!dbUrl) {
+    console.log("[Database] No DATABASE_URL, skipping migrations");
+    return;
+  }
   try {
-    const { getDb } = await import("../db");
-    const db = await getDb();
-    if (!db) {
-      console.log("[Database] No DB connection, skipping migrations");
-      return;
-    }
-    const { sql } = await import("drizzle-orm");
-    await db.execute(sql`
+    const mysql = await import("mysql2/promise");
+    const conn = await mysql.createConnection(dbUrl);
+    await conn.execute(`
       CREATE TABLE IF NOT EXISTS \`calc_history\` (
         \`id\` int AUTO_INCREMENT NOT NULL,
         \`buy_price_usd_oz\` decimal(10,4) NOT NULL,
@@ -53,9 +56,10 @@ async function runMigrations() {
         CONSTRAINT \`calc_history_id\` PRIMARY KEY(\`id\`)
       )
     `);
-    console.log("[Database] calc_history table ensured");
-  } catch (error) {
-    console.error("[Database] Migration error (non-fatal):", error);
+    await conn.end();
+    console.log("[Database] calc_history table created/ensured OK");
+  } catch (error: any) {
+    console.error("[Database] Migration error:", error?.message ?? error);
   }
 }
 
