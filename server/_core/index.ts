@@ -34,11 +34,27 @@ async function runMigrations() {
     return;
   }
   try {
-    const { drizzle } = await import("drizzle-orm/mysql2");
-    const { migrate } = await import("drizzle-orm/mysql2/migrator");
-    const db = drizzle(dbUrl);
-    await migrate(db, { migrationsFolder: "./drizzle" });
-    console.log("[Database] Migrations applied successfully");
+    const mysql = await import("mysql2/promise");
+    const conn = await mysql.createConnection(dbUrl);
+    await conn.execute(`
+      CREATE TABLE IF NOT EXISTS \`calc_history\` (
+        \`id\` int AUTO_INCREMENT NOT NULL,
+        \`buy_price_usd_oz\` decimal(10,4) NOT NULL,
+        \`sell_price_vnd_wan\` decimal(10,2) NOT NULL,
+        \`rate_vnd_usd\` decimal(12,2) NOT NULL,
+        \`weight_g\` decimal(8,2) NOT NULL,
+        \`expense_usd\` decimal(10,2) NOT NULL,
+        \`total_cost_usd\` decimal(12,4) NOT NULL,
+        \`total_revenue_usd\` decimal(12,4) NOT NULL,
+        \`net_profit_usd\` decimal(12,4) NOT NULL,
+        \`roi\` decimal(8,4) NOT NULL,
+        \`session_id\` varchar(64),
+        \`createdAt\` timestamp NOT NULL DEFAULT (now()),
+        CONSTRAINT \`calc_history_id\` PRIMARY KEY(\`id\`)
+      )
+    `);
+    await conn.end();
+    console.log("[Database] calc_history table ensured");
   } catch (error) {
     console.error("[Database] Migration error (non-fatal):", error);
   }
