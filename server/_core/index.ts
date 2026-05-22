@@ -27,7 +27,25 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
   throw new Error(`No available port found starting from ${startPort}`);
 }
 
+async function runMigrations() {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) {
+    console.log("[Database] DATABASE_URL not set, skipping migrations");
+    return;
+  }
+  try {
+    const { drizzle } = await import("drizzle-orm/mysql2");
+    const { migrate } = await import("drizzle-orm/mysql2/migrator");
+    const db = drizzle(dbUrl);
+    await migrate(db, { migrationsFolder: "./drizzle" });
+    console.log("[Database] Migrations applied successfully");
+  } catch (error) {
+    console.error("[Database] Migration error (non-fatal):", error);
+  }
+}
+
 async function startServer() {
+  await runMigrations();
   const app = express();
   const server = createServer(app);
   // Configure body parser with larger size limit for file uploads
