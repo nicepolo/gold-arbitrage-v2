@@ -370,20 +370,24 @@ export const appRouter = router({
         const breakEvenRevVnd = breakEvenRevUsd * input.rateVndUsd;
         const breakEvenSellVndWan = breakEvenRevVnd / weightChi / 10000;
 
-        // 儲存歷史記錄
+        // 儲存歷史記錄（錯誤不影響計算結果）
         if (input.sessionId) {
-          await insertCalcHistory({
-            buyPriceUsdOz: String(input.buyUsdOz),
-            sellPriceVndWan: String(input.sellVndWan),
-            rateVndUsd: String(input.rateVndUsd),
-            weightG: String(input.weightG),
-            expenseUsd: String(totalExpenseUsd),
-            totalCostUsd: String(result.totalCostUsd),
-            totalRevenueUsd: String(result.totalRevenueUsd),
-            netProfitUsd: String(result.netProfitUsd),
-            roi: String(result.roi),
-            sessionId: input.sessionId,
-          });
+          try {
+            await insertCalcHistory({
+              buyPriceUsdOz: String(input.buyUsdOz),
+              sellPriceVndWan: String(input.sellVndWan),
+              rateVndUsd: String(input.rateVndUsd),
+              weightG: String(input.weightG),
+              expenseUsd: String(totalExpenseUsd),
+              totalCostUsd: String(result.totalCostUsd),
+              totalRevenueUsd: String(result.totalRevenueUsd),
+              netProfitUsd: String(result.netProfitUsd),
+              roi: String(result.roi),
+              sessionId: input.sessionId,
+            });
+          } catch (dbErr) {
+            console.warn("[Database] Failed to save history (non-fatal):", dbErr);
+          }
         }
 
         // 高利潤通知
@@ -497,7 +501,11 @@ export const appRouter = router({
     getHistory: publicProcedure
       .input(z.object({ sessionId: z.string() }))
       .query(async ({ input }) => {
-        return getCalcHistoryBySession(input.sessionId, 50);
+        try {
+          return await getCalcHistoryBySession(input.sessionId, 50);
+        } catch {
+          return [];
+        }
       }),
 
     // 清除歷史記錄
