@@ -83,6 +83,51 @@ body {
   text-transform: uppercase; margin-bottom: 14px;
 }
 
+/* Source toggle */
+.source-toggle {
+  display: flex;
+  background: #f3f4f6;
+  border-radius: 10px;
+  padding: 3px;
+  margin-bottom: 14px;
+}
+.src-btn {
+  flex: 1;
+  padding: 8px 4px;
+  font-size: 14px; font-weight: 600;
+  border: none; border-radius: 8px;
+  background: none; color: var(--muted);
+  cursor: pointer; transition: all 0.15s;
+}
+.src-btn.active {
+  background: white;
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
+
+/* USD/oz mode toggle */
+.label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+}
+.label-row label { font-size: 12px; color: var(--muted); }
+.mini-toggle {
+  display: flex;
+  background: #f3f4f6;
+  border-radius: 6px;
+  padding: 2px;
+}
+.mini-btn {
+  padding: 2px 8px;
+  font-size: 11px; font-weight: 600;
+  border: none; border-radius: 4px;
+  background: none; color: var(--muted);
+  cursor: pointer;
+}
+.mini-btn.active { background: white; color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+
 /* Fields */
 .field { margin-bottom: 12px; }
 .field:last-child { margin-bottom: 0; }
@@ -95,6 +140,7 @@ body {
   background: #fafafa;
 }
 .field input:focus { outline: none; border-color: var(--gold); background: white; }
+.field input[readonly] { background: #f0fdf4; color: var(--green); border-color: #bbf7d0; }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .field-hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
 
@@ -183,6 +229,14 @@ body {
 }
 .h-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
 .h-date { font-size: 12px; color: var(--muted); }
+.h-source-tag {
+  display: inline-block;
+  font-size: 10px; font-weight: 700;
+  padding: 2px 6px; border-radius: 4px;
+  margin-top: 2px;
+}
+.h-source-tag.hk { background: #fef3c7; color: #92400e; }
+.h-source-tag.tw { background: #dbeafe; color: #1e40af; }
 .h-profit { font-size: 22px; font-weight: 800; }
 .h-profit.pos { color: var(--green); }
 .h-profit.neg { color: var(--red); }
@@ -231,32 +285,67 @@ body {
 <div id="tab-calc" class="tab-content active">
 
   <div class="card">
-    <div class="card-title">📊 今日行情</div>
-    <div class="field-row">
+    <div class="card-title">🏪 進貨地點</div>
+    <div class="source-toggle">
+      <button class="src-btn active" id="srcHK" onclick="setSource('hk')">🇭🇰 香港拿金</button>
+      <button class="src-btn" id="srcTW" onclick="setSource('tw')">🇹🇼 台灣拿金</button>
+    </div>
+
+    <div class="card-title" style="margin-top:4px">📊 今日行情</div>
+
+    <!-- HK Source Fields -->
+    <div id="hkFields">
       <div class="field">
-        <label>香港金價 (TWD/錢)</label>
-        <input type="number" id="hkPrice" value="17690" inputmode="decimal" oninput="calc()">
+        <div class="label-row">
+          <label>香港金價</label>
+          <div class="mini-toggle">
+            <button class="mini-btn active" id="modeHkTwd" onclick="setHkMode('twd')">TWD/錢</button>
+            <button class="mini-btn" id="modeHkUsd" onclick="setHkMode('usd')">USD/oz</button>
+          </div>
+        </div>
+        <!-- TWD/錢 mode -->
+        <div id="hkTwdInput">
+          <input type="number" id="hkPrice" value="17690" inputmode="decimal" oninput="calc()">
+        </div>
+        <!-- USD/oz mode -->
+        <div id="hkUsdInput" style="display:none">
+          <input type="number" id="hkUsdOz" placeholder="例：3330" inputmode="decimal" oninput="onHkUsdChange()">
+          <div class="field-hint">USDT/TWD: <span id="usdtRateDisplay">載入中…</span>　換算: <strong id="hkConverted">—</strong> TWD/錢</div>
+          <!-- Readonly converted value shown so user can verify -->
+          <input type="number" id="hkPriceConverted" readonly placeholder="換算後 TWD/錢" style="margin-top:6px;font-size:14px;padding:8px 13px">
+        </div>
       </div>
+      <div class="field-row">
+        <div class="field">
+          <label>盾台匯率 (VND/TWD)</label>
+          <input type="number" id="vndRate" value="825" inputmode="decimal" oninput="calc()">
+          <div class="field-hint">例：825 盾 = 1 TWD</div>
+        </div>
+        <div class="field">
+          <label>港台匯率 (HKD/TWD)</label>
+          <input type="number" id="hkdRate" value="4.04" step="0.01" inputmode="decimal" oninput="onHkUsdChange(); calc()">
+          <div class="field-hint">例：1 HKD = 4.04 TWD</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TW Source Fields -->
+    <div id="twFields" style="display:none">
       <div class="field">
         <label>台灣金價 (TWD/錢)</label>
         <input type="number" id="twPrice" value="17950" inputmode="decimal" oninput="calc()">
       </div>
+      <div class="field">
+        <label>盾台匯率 (VND/TWD)</label>
+        <input type="number" id="vndRateTW" value="825" inputmode="decimal" oninput="calc()">
+        <div class="field-hint">例：825 盾 = 1 TWD</div>
+      </div>
     </div>
+
+    <!-- Common Vietnam price -->
     <div class="field">
       <label>越南金價 (VND/錢)</label>
       <input type="number" id="vnPrice" value="14980000" inputmode="decimal" oninput="calc()">
-    </div>
-    <div class="field-row">
-      <div class="field">
-        <label>盾台匯率 (VND/TWD)</label>
-        <input type="number" id="vndRate" value="825" inputmode="decimal" oninput="calc()">
-        <div class="field-hint">例：825 盾 = 1 TWD</div>
-      </div>
-      <div class="field">
-        <label>港台匯率 (HKD/TWD)</label>
-        <input type="number" id="hkdRate" value="4.04" step="0.01" inputmode="decimal" oninput="calc()">
-        <div class="field-hint">例：1 HKD = 4.04 TWD</div>
-      </div>
     </div>
   </div>
 
@@ -267,14 +356,30 @@ body {
       <input type="number" id="grams" value="298" inputmode="decimal" oninput="calc()">
       <div class="field-hint" id="qianHint">= 79.47 錢</div>
     </div>
-    <div class="field-row">
-      <div class="field">
-        <label>加工費 (HKD/g)</label>
-        <input type="number" id="procRate" value="1.5" step="0.1" inputmode="decimal" oninput="calc()">
+    <!-- HK processing fee -->
+    <div id="hkFeeFields">
+      <div class="field-row">
+        <div class="field">
+          <label>加工費 (HKD/g)</label>
+          <input type="number" id="procRate" value="1.5" step="0.1" inputmode="decimal" oninput="calc()">
+        </div>
+        <div class="field">
+          <label>其他費用 (TWD)</label>
+          <input type="number" id="otherCost" value="0" inputmode="decimal" oninput="calc()">
+        </div>
       </div>
-      <div class="field">
-        <label>其他費用 (TWD)</label>
-        <input type="number" id="otherCost" value="0" inputmode="decimal" oninput="calc()">
+    </div>
+    <!-- TW processing fee -->
+    <div id="twFeeFields" style="display:none">
+      <div class="field-row">
+        <div class="field">
+          <label>運輸/其他費用 (TWD)</label>
+          <input type="number" id="twOtherCost" value="0" inputmode="decimal" oninput="calc()">
+        </div>
+        <div class="field">
+          <label>加工費 (TWD/錢)</label>
+          <input type="number" id="twProcPerQian" value="0" inputmode="decimal" oninput="calc()">
+        </div>
       </div>
     </div>
   </div>
@@ -283,10 +388,10 @@ body {
     <div class="card-title">💰 計算明細</div>
 
     <div class="result-row">
-      <span class="result-label">香港進貨成本</span>
+      <span class="result-label" id="buyCostLabel">香港進貨成本</span>
       <span class="result-value" id="r-hkcost">—</span>
     </div>
-    <div class="result-row">
+    <div class="result-row" id="procRow">
       <span class="result-label">加工費</span>
       <span class="result-value" id="r-proc">—</span>
     </div>
@@ -367,47 +472,117 @@ const fmtShort = n => {
   return fmt(n);
 };
 
-function calc() {
-  const hkP  = +document.getElementById('hkPrice').value  || 0;
-  const vnP  = +document.getElementById('vnPrice').value  || 0;
-  const vnd  = +document.getElementById('vndRate').value  || 825;
-  const hkd  = +document.getElementById('hkdRate').value  || 4.04;
-  const g    = +document.getElementById('grams').value    || 0;
-  const pr   = +document.getElementById('procRate').value || 1.5;
-  const oth  = +document.getElementById('otherCost').value|| 0;
+// State
+let source = 'hk';      // 'hk' or 'tw'
+let hkMode = 'twd';     // 'twd' or 'usd'
+let usdtTwd = 31.8;     // auto-fetched USDT/TWD rate
+const OZ_PER_QIAN = 31.1035 / 3.75; // ~8.2943
 
+function setSource(s) {
+  source = s;
+  document.getElementById('srcHK').classList.toggle('active', s === 'hk');
+  document.getElementById('srcTW').classList.toggle('active', s === 'tw');
+  document.getElementById('hkFields').style.display    = s === 'hk' ? '' : 'none';
+  document.getElementById('twFields').style.display    = s === 'tw' ? '' : 'none';
+  document.getElementById('hkFeeFields').style.display = s === 'hk' ? '' : 'none';
+  document.getElementById('twFeeFields').style.display = s === 'tw' ? '' : 'none';
+  document.getElementById('buyCostLabel').textContent  = s === 'hk' ? '香港進貨成本' : '台灣進貨成本';
+  document.getElementById('procRow').style.display     = s === 'hk' ? '' : 'none';
+  calc();
+}
+
+function setHkMode(m) {
+  hkMode = m;
+  document.getElementById('modeHkTwd').classList.toggle('active', m === 'twd');
+  document.getElementById('modeHkUsd').classList.toggle('active', m === 'usd');
+  document.getElementById('hkTwdInput').style.display = m === 'twd' ? '' : 'none';
+  document.getElementById('hkUsdInput').style.display = m === 'usd' ? '' : 'none';
+  if (m === 'usd') onHkUsdChange();
+  calc();
+}
+
+function onHkUsdChange() {
+  const usdOz = +document.getElementById('hkUsdOz').value || 0;
+  if (usdOz > 0) {
+    const twdQian = usdOz * usdtTwd / OZ_PER_QIAN;
+    document.getElementById('hkConverted').textContent = Math.round(twdQian).toLocaleString('zh-TW');
+    document.getElementById('hkPriceConverted').value = Math.round(twdQian);
+  } else {
+    document.getElementById('hkConverted').textContent = '—';
+    document.getElementById('hkPriceConverted').value = '';
+  }
+  calc();
+}
+
+function getHkPrice() {
+  if (hkMode === 'twd') return +document.getElementById('hkPrice').value || 0;
+  const usdOz = +document.getElementById('hkUsdOz').value || 0;
+  return usdOz * usdtTwd / OZ_PER_QIAN;
+}
+
+function calc() {
+  const vnP  = +document.getElementById('vnPrice').value   || 0;
+  const g    = +document.getElementById('grams').value     || 0;
   const QIAN_PER_G = 1 / 3.75;
   const qian   = g * QIAN_PER_G;
-  const hkCost = hkP * qian;
-  const proc   = g * pr * hkd;
-  const cost   = hkCost + proc + oth;
+
+  let buyCost = 0, proc = 0, oth = 0, vnd = 0;
+
+  if (source === 'hk') {
+    const hkP = getHkPrice();
+    const hkd = +document.getElementById('hkdRate').value  || 4.04;
+    const pr  = +document.getElementById('procRate').value || 1.5;
+    oth       = +document.getElementById('otherCost').value|| 0;
+    vnd       = +document.getElementById('vndRate').value  || 825;
+
+    buyCost   = hkP * qian;
+    proc      = g * pr * hkd;
+
+    document.getElementById('r-proc').textContent =
+      fmt(proc) + '  (' + g + 'g × HK$' + pr + ' × ' + hkd + ')';
+  } else {
+    const twP   = +document.getElementById('twPrice').value      || 0;
+    const twOth = +document.getElementById('twOtherCost').value  || 0;
+    const twPPQ = +document.getElementById('twProcPerQian').value|| 0;
+    vnd         = +document.getElementById('vndRateTW').value    || 825;
+
+    buyCost = twP * qian;
+    proc    = twPPQ * qian;
+    oth     = twOth;
+  }
+
+  const cost   = buyCost + proc + oth;
   const rev    = (vnP * qian) / vnd;
   const profit = rev - cost;
   const roi    = cost > 0 ? profit / cost * 100 : 0;
 
   // per-100g
-  const hk100 = g > 0 ? hkCost / g * 100 : 0;
-  const vn100 = g > 0 ? rev    / g * 100 : 0;
-  const p100  = g > 0 ? profit / g * 100 : 0;
+  const hk100 = g > 0 ? buyCost / g * 100 : 0;
+  const vn100 = g > 0 ? rev     / g * 100 : 0;
+  const p100  = g > 0 ? profit  / g * 100 : 0;
 
-  document.getElementById('qianHint').textContent = '= ' + qian.toFixed(2) + ' 錢';
-  document.getElementById('r-hkcost').textContent = fmt(hkCost);
-  document.getElementById('r-proc').textContent   = fmt(proc) + '  (' + g + 'g × HK$' + pr + ' × ' + hkd + ')';
-  document.getElementById('r-other').textContent  = fmt(oth);
-  document.getElementById('r-cost').textContent   = fmt(cost);
-  document.getElementById('r-rev').textContent    = fmt(rev);
-  document.getElementById('b-hk100').textContent  = fmtShort(hk100);
-  document.getElementById('b-vn100').textContent  = fmtShort(vn100);
-  document.getElementById('b-p100').textContent   = fmtShort(p100);
-  document.getElementById('r-profit').textContent = fmt(profit);
-  document.getElementById('r-roi').textContent    = '報酬率 ' + roi.toFixed(2) + '%';
+  document.getElementById('qianHint').textContent    = '= ' + qian.toFixed(2) + ' 錢';
+  document.getElementById('r-hkcost').textContent    = fmt(buyCost);
+  document.getElementById('r-other').textContent     = fmt(oth);
+  document.getElementById('r-cost').textContent      = fmt(cost);
+  document.getElementById('r-rev').textContent       = fmt(rev);
+  document.getElementById('b-hk100').textContent     = fmtShort(hk100);
+  document.getElementById('b-vn100').textContent     = fmtShort(vn100);
+  document.getElementById('b-p100').textContent      = fmtShort(p100);
+  document.getElementById('r-profit').textContent    = fmt(profit);
+  document.getElementById('r-roi').textContent       = '報酬率 ' + roi.toFixed(2) + '%';
 
   const box = document.getElementById('profitBox');
   const amt = document.getElementById('r-profit');
   box.className = profit >= 0 ? 'profit-box' : 'profit-box loss';
   amt.className = profit >= 0 ? 'profit-amount' : 'profit-amount loss';
 
-  return { hkP, vnP, vnd, hkd, g, pr, oth, qian, hkCost, proc, cost, rev, profit, roi };
+  return { source, hkMode,
+    buyCost, proc, oth, cost, rev, profit, roi, qian, g, vnd,
+    hkP: source === 'hk' ? getHkPrice() : 0,
+    twP: source === 'tw' ? (+document.getElementById('twPrice').value || 0) : 0,
+    vnP
+  };
 }
 
 function switchTab(t) {
@@ -476,7 +651,10 @@ function renderHistory() {
       <div class="h-header">
         <div>
           <div class="h-date">${r.date}</div>
-          <div style="font-size:13px;color:var(--muted);margin-top:2px">${r.g}g ／ ${r.qian.toFixed(1)}錢</div>
+          <div style="margin-top:3px">
+            <span class="h-source-tag ${r.source || 'hk'}">${r.source === 'tw' ? '🇹🇼 台灣拿金' : '🇭🇰 香港拿金'}</span>
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">${r.g}g ／ ${r.qian.toFixed(1)}錢</div>
         </div>
         <div style="display:flex;align-items:center;gap:10px">
           <div class="h-profit ${r.profit>=0?'pos':'neg'}">${fmt(r.profit)}</div>
@@ -484,7 +662,7 @@ function renderHistory() {
         </div>
       </div>
       <div class="h-grid">
-        <div class="h-item">港金: <span>${fmt(r.hkCost)}</span></div>
+        <div class="h-item">進貨成本: <span>${fmt(r.buyCost)}</span></div>
         <div class="h-item">越南收入: <span>${fmt(r.rev)}</span></div>
         <div class="h-item">加工費: <span>${fmt(r.proc)}</span></div>
         <div class="h-item">報酬率: <span>${r.roi.toFixed(2)}%</span></div>
@@ -495,22 +673,40 @@ function renderHistory() {
   `).join('');
 }
 
-// Live spot price (London gold via Binance PAXG)
+// Live spot price (London gold via Binance PAXG) + USDT/TWD via BitoPro
 async function fetchSpot() {
   try {
     const r = await fetch('https://data-api.binance.vision/api/v3/ticker/price?symbol=PAXGUSDT');
     if (r.ok) {
       const d = await r.json();
       const usd = parseFloat(d.price);
-      const hkd = +document.getElementById('hkdRate').value || 4.04;
       document.getElementById('spotBadge').textContent = '$' + usd.toFixed(0) + '/oz';
     }
   } catch(e) {}
 }
 
+async function fetchUsdtTwd() {
+  try {
+    const r = await fetch('https://api.bitopro.com/v3/tickers/usdt_twd');
+    if (r.ok) {
+      const d = await r.json();
+      const rate = parseFloat(d.data?.lastPrice || d.data?.close || 0);
+      if (rate > 0) {
+        usdtTwd = rate;
+        document.getElementById('usdtRateDisplay').textContent = rate.toFixed(2);
+        if (hkMode === 'usd') onHkUsdChange();
+      }
+    }
+  } catch(e) {
+    document.getElementById('usdtRateDisplay').textContent = usdtTwd.toFixed(2) + ' (預設)';
+  }
+}
+
 calc();
 fetchSpot();
+fetchUsdtTwd();
 setInterval(fetchSpot, 60000);
+setInterval(fetchUsdtTwd, 60000);
 </script>
 </body>
 </html>
