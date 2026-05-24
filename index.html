@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>港越黃金帳本</title>
+<style>
+:root {
+  --gold: #c9960a;
+  --gold-bg: #fff8e1;
+  --green: #16a34a;
+  --green-bg: #dcfce7;
+  --red: #dc2626;
+  --red-bg: #fee2e2;
+  --bg: #f3f4f6;
+  --card: #ffffff;
+  --text: #111827;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --radius: 14px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang TC', 'Noto Sans TC', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  max-width: 480px;
+  margin: 0 auto;
+  padding-bottom: 90px;
+  font-size: 15px;
+}
+
+/* Header */
+.header {
+  background: #111827;
+  color: white;
+  padding: 14px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky; top: 0; z-index: 100;
+}
+.header-title { font-size: 17px; font-weight: 600; letter-spacing: -0.3px; }
+.spot-badge {
+  background: #eab308;
+  color: #1a1000;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 50px; z-index: 99;
+}
+.tab {
+  flex: 1; padding: 12px 8px;
+  text-align: center; font-size: 14px; font-weight: 500;
+  color: var(--muted); cursor: pointer;
+  border: none; background: none;
+  border-bottom: 2.5px solid transparent;
+}
+.tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+.tab-content { display: none; padding: 14px 14px 0; }
+.tab-content.active { display: block; }
+
+/* Card */
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+}
+.card-title {
+  font-size: 11px; font-weight: 700;
+  color: var(--muted); letter-spacing: 0.8px;
+  text-transform: uppercase; margin-bottom: 14px;
+}
+
+/* Fields */
+.field { margin-bottom: 12px; }
+.field:last-child { margin-bottom: 0; }
+.field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+.field input {
+  width: 100%; padding: 11px 13px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  font-size: 16px; color: var(--text);
+  background: #fafafa;
+}
+.field input:focus { outline: none; border-color: var(--gold); background: white; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.field-hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+/* Result rows */
+.result-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 9px 0; border-bottom: 1px solid var(--border);
+}
+.result-row:last-child { border-bottom: none; padding-bottom: 0; }
+.result-label { font-size: 14px; color: var(--muted); }
+.result-value { font-size: 15px; font-weight: 600; color: var(--text); }
+.result-row.total .result-label { color: var(--text); font-weight: 600; }
+.result-row.total .result-value { font-size: 16px; }
+
+/* Profit box */
+.profit-box {
+  border-radius: var(--radius);
+  padding: 20px 16px;
+  text-align: center;
+  margin-top: 14px;
+  border: 2px solid var(--green);
+  background: var(--green-bg);
+}
+.profit-box.loss { border-color: var(--red); background: var(--red-bg); }
+.profit-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.profit-amount { font-size: 34px; font-weight: 800; color: var(--green); letter-spacing: -1px; }
+.profit-amount.loss { color: var(--red); }
+.profit-sub { font-size: 13px; color: var(--muted); margin-top: 6px; }
+
+/* Per-100g breakdown */
+.breakdown {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 14px;
+}
+.breakdown-item {
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 10px;
+  text-align: center;
+}
+.breakdown-label { font-size: 10px; color: var(--muted); margin-bottom: 4px; }
+.breakdown-value { font-size: 13px; font-weight: 700; color: var(--text); }
+
+/* Save button */
+.btn-save {
+  width: 100%; padding: 15px;
+  background: #c9960a;
+  color: white;
+  font-size: 16px; font-weight: 700;
+  border: none; border-radius: var(--radius);
+  cursor: pointer; margin-top: 10px;
+  letter-spacing: 0.3px;
+}
+.btn-save:active { opacity: 0.85; transform: scale(0.99); }
+
+/* Summary card */
+.summary-card {
+  background: #111827;
+  color: white;
+  border-radius: var(--radius);
+  padding: 20px 18px;
+  margin-bottom: 14px;
+}
+.summary-title { font-size: 12px; color: #9ca3af; margin-bottom: 6px; }
+.summary-amount { font-size: 36px; font-weight: 800; color: #eab308; letter-spacing: -1px; }
+.summary-stats { display: flex; gap: 10px; margin-top: 14px; }
+.s-stat {
+  flex: 1;
+  background: rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 10px 8px;
+  text-align: center;
+}
+.s-stat-label { font-size: 10px; color: #9ca3af; margin-bottom: 4px; }
+.s-stat-value { font-size: 16px; font-weight: 700; color: white; }
+
+/* History items */
+.history-item {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+}
+.h-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+.h-date { font-size: 12px; color: var(--muted); }
+.h-profit { font-size: 22px; font-weight: 800; }
+.h-profit.pos { color: var(--green); }
+.h-profit.neg { color: var(--red); }
+.h-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
+.h-item { font-size: 12px; color: var(--muted); }
+.h-item span { color: var(--text); font-weight: 500; }
+.h-delete {
+  background: none; border: none; color: #d1d5db;
+  font-size: 16px; cursor: pointer; padding: 2px 4px;
+}
+.h-delete:active { color: var(--red); }
+
+.btn-clear {
+  width: 100%; padding: 13px;
+  background: transparent;
+  color: var(--red); font-size: 14px; font-weight: 600;
+  border: 1.5px solid #fca5a5;
+  border-radius: var(--radius);
+  cursor: pointer; margin-top: 4px;
+}
+
+.empty {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--muted);
+}
+.empty-icon { font-size: 52px; margin-bottom: 12px; }
+
+/* Divider */
+.divider { height: 1px; background: var(--border); margin: 4px 0; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title">🥇 港越黃金帳本</div>
+  <div class="spot-badge" id="spotBadge">現貨 ···</div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('calc')">🧮 計算</button>
+  <button class="tab" onclick="switchTab('history')">📋 記帳本</button>
+</div>
+
+<!-- ========== CALCULATOR ========== -->
+<div id="tab-calc" class="tab-content active">
+
+  <div class="card">
+    <div class="card-title">📊 今日行情</div>
+    <div class="field-row">
+      <div class="field">
+        <label>香港金價 (TWD/錢)</label>
+        <input type="number" id="hkPrice" value="17690" inputmode="decimal" oninput="calc()">
+      </div>
+      <div class="field">
+        <label>台灣金價 (TWD/錢)</label>
+        <input type="number" id="twPrice" value="17950" inputmode="decimal" oninput="calc()">
+      </div>
+    </div>
+    <div class="field">
+      <label>越南金價 (VND/錢)</label>
+      <input type="number" id="vnPrice" value="14980000" inputmode="decimal" oninput="calc()">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>盾台匯率 (VND/TWD)</label>
+        <input type="number" id="vndRate" value="825" inputmode="decimal" oninput="calc()">
+        <div class="field-hint">例：825 盾 = 1 TWD</div>
+      </div>
+      <div class="field">
+        <label>港台匯率 (HKD/TWD)</label>
+        <input type="number" id="hkdRate" value="4.04" step="0.01" inputmode="decimal" oninput="calc()">
+        <div class="field-hint">例：1 HKD = 4.04 TWD</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">⚖️ 本次交易</div>
+    <div class="field">
+      <label>交易克數 (g)</label>
+      <input type="number" id="grams" value="298" inputmode="decimal" oninput="calc()">
+      <div class="field-hint" id="qianHint">= 79.47 錢</div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>加工費 (HKD/g)</label>
+        <input type="number" id="procRate" value="1.5" step="0.1" inputmode="decimal" oninput="calc()">
+      </div>
+      <div class="field">
+        <label>其他費用 (TWD)</label>
+        <input type="number" id="otherCost" value="0" inputmode="decimal" oninput="calc()">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">💰 計算明細</div>
+
+    <div class="result-row">
+      <span class="result-label">香港進貨成本</span>
+      <span class="result-value" id="r-hkcost">—</span>
+    </div>
+    <div class="result-row">
+      <span class="result-label">加工費</span>
+      <span class="result-value" id="r-proc">—</span>
+    </div>
+    <div class="result-row">
+      <span class="result-label">其他費用</span>
+      <span class="result-value" id="r-other">—</span>
+    </div>
+    <div class="result-row total">
+      <span class="result-label">總成本</span>
+      <span class="result-value" id="r-cost">—</span>
+    </div>
+    <div class="divider"></div>
+    <div class="result-row" style="padding-top:9px">
+      <span class="result-label">越南出貨收入</span>
+      <span class="result-value" style="color:var(--green)" id="r-rev">—</span>
+    </div>
+
+    <div class="breakdown">
+      <div class="breakdown-item">
+        <div class="breakdown-label">每100g 進貨</div>
+        <div class="breakdown-value" id="b-hk100">—</div>
+      </div>
+      <div class="breakdown-item">
+        <div class="breakdown-label">每100g 出貨</div>
+        <div class="breakdown-value" id="b-vn100">—</div>
+      </div>
+      <div class="breakdown-item">
+        <div class="breakdown-label">每100g 利潤</div>
+        <div class="breakdown-value" id="b-p100">—</div>
+      </div>
+    </div>
+
+    <div class="profit-box" id="profitBox">
+      <div class="profit-label">本次淨利</div>
+      <div class="profit-amount" id="r-profit">NT$0</div>
+      <div class="profit-sub" id="r-roi">報酬率 0.00%</div>
+    </div>
+  </div>
+
+  <button class="btn-save" onclick="saveRecord()">💾 儲存這筆記帳</button>
+</div>
+
+<!-- ========== HISTORY ========== -->
+<div id="tab-history" class="tab-content">
+  <div class="summary-card">
+    <div class="summary-title">累計總獲利</div>
+    <div class="summary-amount" id="totalProfit">NT$0</div>
+    <div class="summary-stats">
+      <div class="s-stat">
+        <div class="s-stat-label">交易筆數</div>
+        <div class="s-stat-value" id="tradeCount">0</div>
+      </div>
+      <div class="s-stat">
+        <div class="s-stat-label">總交易量</div>
+        <div class="s-stat-value" id="totalGrams">0g</div>
+      </div>
+      <div class="s-stat">
+        <div class="s-stat-label">平均每筆</div>
+        <div class="s-stat-value" id="avgProfit">NT$0</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="historyList"></div>
+  <div id="emptyState" class="empty" style="display:none">
+    <div class="empty-icon">📋</div>
+    <div style="font-weight:600">還沒有記帳紀錄</div>
+    <div style="font-size:13px;margin-top:6px">計算後按「儲存這筆記帳」</div>
+  </div>
+  <button class="btn-clear" onclick="clearHistory()">🗑 清除所有記錄</button>
+</div>
+
+<script>
+const fmt = n => 'NT$' + Math.round(n).toLocaleString('zh-TW');
+const fmtShort = n => {
+  const abs = Math.abs(Math.round(n));
+  if (abs >= 10000) return (n < 0 ? '-' : '') + (abs / 10000).toFixed(1) + '萬';
+  return fmt(n);
+};
+
+function calc() {
+  const hkP  = +document.getElementById('hkPrice').value  || 0;
+  const vnP  = +document.getElementById('vnPrice').value  || 0;
+  const vnd  = +document.getElementById('vndRate').value  || 825;
+  const hkd  = +document.getElementById('hkdRate').value  || 4.04;
+  const g    = +document.getElementById('grams').value    || 0;
+  const pr   = +document.getElementById('procRate').value || 1.5;
+  const oth  = +document.getElementById('otherCost').value|| 0;
+
+  const QIAN_PER_G = 1 / 3.75;
+  const qian   = g * QIAN_PER_G;
+  const hkCost = hkP * qian;
+  const proc   = g * pr * hkd;
+  const cost   = hkCost + proc + oth;
+  const rev    = (vnP * qian) / vnd;
+  const profit = rev - cost;
+  const roi    = cost > 0 ? profit / cost * 100 : 0;
+
+  // per-100g
+  const hk100 = g > 0 ? hkCost / g * 100 : 0;
+  const vn100 = g > 0 ? rev    / g * 100 : 0;
+  const p100  = g > 0 ? profit / g * 100 : 0;
+
+  document.getElementById('qianHint').textContent = '= ' + qian.toFixed(2) + ' 錢';
+  document.getElementById('r-hkcost').textContent = fmt(hkCost);
+  document.getElementById('r-proc').textContent   = fmt(proc) + '  (' + g + 'g × HK$' + pr + ' × ' + hkd + ')';
+  document.getElementById('r-other').textContent  = fmt(oth);
+  document.getElementById('r-cost').textContent   = fmt(cost);
+  document.getElementById('r-rev').textContent    = fmt(rev);
+  document.getElementById('b-hk100').textContent  = fmtShort(hk100);
+  document.getElementById('b-vn100').textContent  = fmtShort(vn100);
+  document.getElementById('b-p100').textContent   = fmtShort(p100);
+  document.getElementById('r-profit').textContent = fmt(profit);
+  document.getElementById('r-roi').textContent    = '報酬率 ' + roi.toFixed(2) + '%';
+
+  const box = document.getElementById('profitBox');
+  const amt = document.getElementById('r-profit');
+  box.className = profit >= 0 ? 'profit-box' : 'profit-box loss';
+  amt.className = profit >= 0 ? 'profit-amount' : 'profit-amount loss';
+
+  return { hkP, vnP, vnd, hkd, g, pr, oth, qian, hkCost, proc, cost, rev, profit, roi };
+}
+
+function switchTab(t) {
+  document.querySelectorAll('.tab').forEach((el, i) => el.classList.toggle('active', ['calc','history'][i] === t));
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + t).classList.add('active');
+  if (t === 'history') renderHistory();
+}
+
+function saveRecord() {
+  const d = calc();
+  const records = JSON.parse(localStorage.getItem('goldBook') || '[]');
+  records.unshift({
+    ...d,
+    date: new Date().toLocaleString('zh-TW', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit'
+    }),
+    id: Date.now()
+  });
+  localStorage.setItem('goldBook', JSON.stringify(records));
+  const btn = document.querySelector('.btn-save');
+  btn.textContent = '✅ 已儲存！';
+  setTimeout(() => btn.textContent = '💾 儲存這筆記帳', 1500);
+}
+
+function deleteRecord(id) {
+  let records = JSON.parse(localStorage.getItem('goldBook') || '[]');
+  records = records.filter(r => r.id !== id);
+  localStorage.setItem('goldBook', JSON.stringify(records));
+  renderHistory();
+}
+
+function clearHistory() {
+  if (confirm('確定要清除所有記帳記錄嗎？')) {
+    localStorage.removeItem('goldBook');
+    renderHistory();
+  }
+}
+
+function renderHistory() {
+  const records = JSON.parse(localStorage.getItem('goldBook') || '[]');
+  const list  = document.getElementById('historyList');
+  const empty = document.getElementById('emptyState');
+
+  if (!records.length) {
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    document.getElementById('totalProfit').textContent = 'NT$0';
+    document.getElementById('tradeCount').textContent = '0';
+    document.getElementById('totalGrams').textContent = '0g';
+    document.getElementById('avgProfit').textContent = 'NT$0';
+    return;
+  }
+  empty.style.display = 'none';
+
+  const totalP = records.reduce((s, r) => s + r.profit, 0);
+  const totalG = records.reduce((s, r) => s + r.g, 0);
+  document.getElementById('totalProfit').textContent = 'NT$' + Math.round(totalP).toLocaleString('zh-TW');
+  document.getElementById('tradeCount').textContent  = records.length + ' 筆';
+  document.getElementById('totalGrams').textContent  = Math.round(totalG) + 'g';
+  document.getElementById('avgProfit').textContent   = 'NT$' + Math.round(totalP / records.length).toLocaleString('zh-TW');
+
+  list.innerHTML = records.map(r => `
+    <div class="history-item">
+      <div class="h-header">
+        <div>
+          <div class="h-date">${r.date}</div>
+          <div style="font-size:13px;color:var(--muted);margin-top:2px">${r.g}g ／ ${r.qian.toFixed(1)}錢</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="h-profit ${r.profit>=0?'pos':'neg'}">${fmt(r.profit)}</div>
+          <button class="h-delete" onclick="deleteRecord(${r.id})">✕</button>
+        </div>
+      </div>
+      <div class="h-grid">
+        <div class="h-item">港金: <span>${fmt(r.hkCost)}</span></div>
+        <div class="h-item">越南收入: <span>${fmt(r.rev)}</span></div>
+        <div class="h-item">加工費: <span>${fmt(r.proc)}</span></div>
+        <div class="h-item">報酬率: <span>${r.roi.toFixed(2)}%</span></div>
+        <div class="h-item">盾台: <span>${r.vnd}</span></div>
+        <div class="h-item">總成本: <span>${fmt(r.cost)}</span></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Live spot price (London gold via Binance PAXG)
+async function fetchSpot() {
+  try {
+    const r = await fetch('https://data-api.binance.vision/api/v3/ticker/price?symbol=PAXGUSDT');
+    if (r.ok) {
+      const d = await r.json();
+      const usd = parseFloat(d.price);
+      const hkd = +document.getElementById('hkdRate').value || 4.04;
+      document.getElementById('spotBadge').textContent = '$' + usd.toFixed(0) + '/oz';
+    }
+  } catch(e) {}
+}
+
+calc();
+fetchSpot();
+setInterval(fetchSpot, 60000);
+</script>
+</body>
+</html>
