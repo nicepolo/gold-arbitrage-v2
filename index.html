@@ -692,8 +692,8 @@ async function fetchUsdtTwd() {
       const d = await r.json();
       const rate = parseFloat(d.data?.lastPrice || d.data?.close || 0);
       if (rate > 0) {
-        usdtTwd = rate;
-        document.getElementById('usdtRateDisplay').textContent = rate.toFixed(2);
+        usdtTwd = Math.round(rate) + 0.4;
+        document.getElementById('usdtRateDisplay').textContent = usdtTwd.toFixed(1);
         if (hkMode === 'usd') onHkUsdChange();
       }
     }
