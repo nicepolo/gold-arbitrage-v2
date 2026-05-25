@@ -674,24 +674,43 @@ function renderHistory() {
   `).join('');
 }
 
-// HKD/TWD via Frankfurter
+// HKD/TWD 自動抓取（多個備用來源）
 async function fetchHkdRate() {
-  try {
-    const r = await fetch('https://api.frankfurter.app/latest?from=HKD&to=TWD');
-    if (r.ok) {
+  const sources = [
+    async () => {
+      const r = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/hkd.json');
       const d = await r.json();
-      const rate = d.rates?.TWD;
-      if (rate) {
+      return { rate: d.hkd.twd, date: d.date };
+    },
+    async () => {
+      const r = await fetch('https://latest.currency-api.pages.dev/v1/currencies/hkd.json');
+      const d = await r.json();
+      return { rate: d.hkd.twd, date: d.date };
+    },
+    async () => {
+      const r = await fetch('https://open.er-api.com/v6/latest/HKD');
+      const d = await r.json();
+      return { rate: d.rates.TWD, date: d.time_last_update_utc?.slice(0,16) || '' };
+    },
+    async () => {
+      const r = await fetch('https://api.frankfurter.app/latest?from=HKD&to=TWD');
+      const d = await r.json();
+      return { rate: d.rates.TWD, date: d.date };
+    }
+  ];
+  for (const src of sources) {
+    try {
+      const { rate, date } = await src();
+      if (rate > 0) {
         document.getElementById('hkdRate').value = rate.toFixed(3);
-        const date = d.date || '';
-        document.getElementById('hkdRateHint').textContent = '自動更新｜' + date + ' 1 HKD = ' + rate.toFixed(3) + ' TWD';
+        document.getElementById('hkdRateHint').textContent = '自動更新｜' + date + '　1 HKD = ' + rate.toFixed(3) + ' TWD';
         onHkUsdChange();
         calc();
+        return;
       }
-    }
-  } catch(e) {
-    document.getElementById('hkdRateHint').textContent = '自動抓取失敗，請手動輸入';
+    } catch(e) {}
   }
+  document.getElementById('hkdRateHint').textContent = '自動抓取失敗，請手動輸入';
 }
 
 // Live spot price (London gold via Binance PAXG) + USDT/TWD via BitoPro
