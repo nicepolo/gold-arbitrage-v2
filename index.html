@@ -223,11 +223,18 @@ body {
 .history-item {
   background: var(--card);
   border-radius: var(--radius);
-  padding: 14px 16px;
   margin-bottom: 10px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+  overflow: hidden;
 }
-.h-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+.h-summary {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 16px;
+  cursor: pointer;
+  user-select: none;
+}
+.h-summary:active { background: #f9fafb; }
+.h-left { flex: 1; min-width: 0; }
 .h-date { font-size: 12px; color: var(--muted); }
 .h-source-tag {
   display: inline-block;
@@ -237,17 +244,42 @@ body {
 }
 .h-source-tag.hk { background: #fef3c7; color: #92400e; }
 .h-source-tag.tw { background: #dbeafe; color: #1e40af; }
-.h-profit { font-size: 22px; font-weight: 800; }
+.h-right { display: flex; align-items: center; gap: 8px; margin-left: 10px; }
+.h-profit { font-size: 20px; font-weight: 800; }
 .h-profit.pos { color: var(--green); }
 .h-profit.neg { color: var(--red); }
-.h-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
-.h-item { font-size: 12px; color: var(--muted); }
-.h-item span { color: var(--text); font-weight: 500; }
+.h-chevron { font-size: 12px; color: var(--muted); transition: transform 0.2s; }
+.h-chevron.open { transform: rotate(180deg); }
 .h-delete {
   background: none; border: none; color: #d1d5db;
-  font-size: 16px; cursor: pointer; padding: 2px 4px;
+  font-size: 16px; cursor: pointer; padding: 4px 6px;
 }
 .h-delete:active { color: var(--red); }
+/* Expanded detail */
+.h-detail {
+  display: none;
+  border-top: 1px solid var(--border);
+  padding: 12px 16px 14px;
+}
+.h-detail.open { display: block; }
+.h-detail-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 8px 12px; margin-bottom: 10px;
+}
+.h-detail-item { font-size: 13px; }
+.h-detail-label { color: var(--muted); font-size: 11px; margin-bottom: 2px; }
+.h-detail-value { color: var(--text); font-weight: 600; }
+.h-detail-divider { height: 1px; background: var(--border); margin: 8px 0; }
+.h-detail-total {
+  display: flex; justify-content: space-between;
+  font-size: 13px; font-weight: 700; color: var(--text);
+  margin-bottom: 4px;
+}
+.h-detail-profit {
+  display: flex; justify-content: space-between;
+  font-size: 15px; font-weight: 800;
+  margin-top: 4px;
+}
 
 .btn-clear {
   width: 100%; padding: 13px;
@@ -649,6 +681,13 @@ function copyReport() {
   });
 }
 
+function toggleDetail(id) {
+  const detail = document.getElementById('detail-' + id);
+  const chev   = document.getElementById('chev-' + id);
+  const open   = detail.classList.toggle('open');
+  chev.classList.toggle('open', open);
+}
+
 function switchTab(t) {
   document.querySelectorAll('.tab').forEach((el, i) => el.classList.toggle('active', ['calc','history'][i] === t));
   document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -661,6 +700,7 @@ function saveRecord() {
   const records = JSON.parse(localStorage.getItem('goldBook') || '[]');
   records.unshift({
     ...d,
+    hkd: +document.getElementById('hkdRate').value || 4.04,
     date: new Date().toLocaleString('zh-TW', {
       year: 'numeric', month: '2-digit', day: '2-digit',
       hour: '2-digit', minute: '2-digit'
@@ -710,33 +750,74 @@ function renderHistory() {
   document.getElementById('totalGrams').textContent  = Math.round(totalG) + 'g';
   document.getElementById('avgProfit').textContent   = 'NT$' + Math.round(totalP / records.length).toLocaleString('zh-TW');
 
-  list.innerHTML = records.map(r => `
+  list.innerHTML = records.map(r => {
+    const srcLabel = r.source === 'tw' ? '🇹🇼 台灣拿金' : '🇭🇰 香港拿金';
+    const srcCls   = r.source === 'tw' ? 'tw' : 'hk';
+    const buyLabel = r.source === 'tw' ? '台灣買價' : '香港買價';
+    const buyPrice = r.source === 'tw'
+      ? (r.twP ? 'NT$' + Math.round(r.twP).toLocaleString('zh-TW') + '/錢' : '—')
+      : (r.hkP ? 'NT$' + Math.round(r.hkP).toLocaleString('zh-TW') + '/錢' : '—');
+    const vnPriceDisplay = r.vnP ? (r.vnP / 10000).toFixed(0) + '萬 VND/錢' : '—';
+    return `
     <div class="history-item">
-      <div class="h-header">
-        <div>
+      <div class="h-summary" onclick="toggleDetail(${r.id})">
+        <div class="h-left">
           <div class="h-date">${r.date}</div>
           <div style="margin-top:3px;display:flex;gap:5px;align-items:center;flex-wrap:wrap">
-            <span class="h-source-tag ${r.source || 'hk'}">${r.source === 'tw' ? '🇹🇼 台灣拿金' : '🇭🇰 香港拿金'}</span>
-            ${r.sets > 1 ? `<span class="h-source-tag" style="background:#f3f4f6;color:#374151">${r.sets}套</span>` : ''}
+            <span class="h-source-tag ${srcCls}">${srcLabel}</span>
+            ${(r.sets||1) > 1 ? `<span class="h-source-tag" style="background:#f3f4f6;color:#374151">${r.sets}套</span>` : ''}
             ${r.runner ? `<span class="h-source-tag" style="background:#ede9fe;color:#5b21b6">👤${r.runner}</span>` : ''}
           </div>
-          <div style="font-size:12px;color:var(--muted);margin-top:2px">${r.g}g ／ ${r.qian.toFixed(1)}錢</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:3px">${r.g}g ／ ${r.qian.toFixed(1)}錢</div>
         </div>
-        <div style="display:flex;align-items:center;gap:10px">
+        <div class="h-right">
           <div class="h-profit ${r.profit>=0?'pos':'neg'}">${fmt(r.profit)}</div>
-          <button class="h-delete" onclick="deleteRecord(${r.id})">✕</button>
+          <span class="h-chevron" id="chev-${r.id}">▼</span>
+          <button class="h-delete" onclick="event.stopPropagation();deleteRecord(${r.id})">✕</button>
         </div>
       </div>
-      <div class="h-grid">
-        <div class="h-item">進貨成本: <span>${fmt(r.buyCost)}</span></div>
-        <div class="h-item">越南收入: <span>${fmt(r.rev)}</span></div>
-        <div class="h-item">加工費: <span>${fmt(r.proc)}</span></div>
-        <div class="h-item">報酬率: <span>${r.roi.toFixed(2)}%</span></div>
-        <div class="h-item">盾台: <span>${r.vnd}</span></div>
-        <div class="h-item">總成本: <span>${fmt(r.cost)}</span></div>
+      <div class="h-detail" id="detail-${r.id}">
+        <div class="h-detail-grid">
+          <div class="h-detail-item">
+            <div class="h-detail-label">${buyLabel}</div>
+            <div class="h-detail-value">${buyPrice}</div>
+          </div>
+          <div class="h-detail-item">
+            <div class="h-detail-label">越南賣價</div>
+            <div class="h-detail-value">${vnPriceDisplay}</div>
+          </div>
+          <div class="h-detail-item">
+            <div class="h-detail-label">盾台匯率</div>
+            <div class="h-detail-value">${r.vnd} VND/TWD</div>
+          </div>
+          ${r.source === 'hk' ? `
+          <div class="h-detail-item">
+            <div class="h-detail-label">港台匯率</div>
+            <div class="h-detail-value">${r.hkd || '—'} HKD/TWD</div>
+          </div>` : ''}
+          <div class="h-detail-item">
+            <div class="h-detail-label">套數</div>
+            <div class="h-detail-value">${r.sets || 1} 套</div>
+          </div>
+          <div class="h-detail-item">
+            <div class="h-detail-label">跑手</div>
+            <div class="h-detail-value">${r.runner || '—'}</div>
+          </div>
+        </div>
+        <div class="h-detail-divider"></div>
+        <div class="h-detail-total"><span>進貨成本</span><span>${fmt(r.buyCost)}</span></div>
+        ${r.proc > 0 ? `<div class="h-detail-total" style="font-weight:500"><span>加工費</span><span>${fmt(r.proc)}</span></div>` : ''}
+        ${r.oth  > 0 ? `<div class="h-detail-total" style="font-weight:500"><span>其他費用</span><span>${fmt(r.oth)}</span></div>` : ''}
+        <div class="h-detail-total"><span>總成本</span><span>${fmt(r.cost)}</span></div>
+        <div class="h-detail-total" style="color:var(--green)"><span>越南收入</span><span>${fmt(r.rev)}</span></div>
+        <div class="h-detail-divider"></div>
+        <div class="h-detail-profit">
+          <span style="color:${r.profit>=0?'var(--green)':'var(--red)'}">淨利</span>
+          <span style="color:${r.profit>=0?'var(--green)':'var(--red)'}">${fmt(r.profit)}　${r.roi.toFixed(2)}%</span>
+        </div>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 // HKD/TWD 自動抓取（多個備用來源）
