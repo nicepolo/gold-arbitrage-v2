@@ -267,6 +267,19 @@ body {
 
 /* Divider */
 .divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+/* Copy button */
+.btn-copy {
+  width: 100%; padding: 12px;
+  background: #f3f4f6;
+  color: var(--text); font-size: 14px; font-weight: 600;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer; margin-top: 10px;
+  letter-spacing: 0.3px;
+}
+.btn-copy:active { background: #e5e7eb; }
+.btn-copy.copied { background: var(--green-bg); color: var(--green); border-color: #86efac; }
 </style>
 </head>
 <body>
@@ -357,6 +370,18 @@ body {
       <input type="number" id="grams" value="298" inputmode="decimal" oninput="calc()">
       <div class="field-hint" id="qianHint">= 79.47 錢</div>
     </div>
+    <div class="field-row">
+      <div class="field">
+        <label>套數</label>
+        <input type="number" id="sets" value="1" min="1" inputmode="numeric" oninput="calc()">
+        <div class="field-hint">幾套金</div>
+      </div>
+      <div class="field">
+        <label>跑手</label>
+        <input type="text" id="runner" placeholder="例：阿明" inputmode="text">
+      </div>
+    </div>
+
     <!-- HK processing fee -->
     <div id="hkFeeFields">
       <div class="field-row">
@@ -432,6 +457,7 @@ body {
     </div>
   </div>
 
+  <button class="btn-copy" id="copyBtn" onclick="copyReport()">📋 一鍵複製摘要</button>
   <button class="btn-save" onclick="saveRecord()">💾 儲存這筆記帳</button>
 </div>
 
@@ -578,12 +604,49 @@ function calc() {
   box.className = profit >= 0 ? 'profit-box' : 'profit-box loss';
   amt.className = profit >= 0 ? 'profit-amount' : 'profit-amount loss';
 
+  const sets   = +document.getElementById('sets').value || 1;
+  const runner = document.getElementById('runner').value.trim();
+
   return { source, hkMode,
     buyCost, proc, oth, cost, rev, profit, roi, qian, g, vnd,
+    sets, runner,
     hkP: source === 'hk' ? getHkPrice() : 0,
     twP: source === 'tw' ? (+document.getElementById('twPrice').value || 0) : 0,
     vnP
   };
+}
+
+function copyReport() {
+  const d = calc();
+  const srcLabel = d.source === 'hk' ? '🇭🇰 香港拿金' : '🇹🇼 台灣拿金';
+  const runnerStr = d.runner ? `跑手：${d.runner}　` : '';
+  const setsStr   = `${d.sets} 套`;
+  const lines = [
+    `🥇 港越黃金帳本 | ${srcLabel}`,
+    `${runnerStr}套數：${setsStr} | ${d.g}g / ${d.qian.toFixed(1)}錢`,
+    `─────────────────`,
+    `進貨成本　${fmt(d.buyCost)}`,
+    d.proc > 0 ? `加工費　　${fmt(d.proc)}` : null,
+    d.oth  > 0 ? `其他費用　${fmt(d.oth)}`  : null,
+    `總成本　　${fmt(d.cost)}`,
+    `越南收入　${fmt(d.rev)}`,
+    `─────────────────`,
+    `淨利　${fmt(d.profit)}（${d.roi.toFixed(2)}%）`,
+    `─────────────────`,
+    d.source === 'hk'
+      ? `港幣匯率：${document.getElementById('hkdRate').value} | 盾台：${d.vnd}`
+      : `盾台：${d.vnd}`,
+  ].filter(Boolean).join('\n');
+
+  navigator.clipboard.writeText(lines).then(() => {
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = '✅ 已複製！';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = '📋 一鍵複製摘要';
+      btn.classList.remove('copied');
+    }, 2000);
+  });
 }
 
 function switchTab(t) {
@@ -652,8 +715,10 @@ function renderHistory() {
       <div class="h-header">
         <div>
           <div class="h-date">${r.date}</div>
-          <div style="margin-top:3px">
+          <div style="margin-top:3px;display:flex;gap:5px;align-items:center;flex-wrap:wrap">
             <span class="h-source-tag ${r.source || 'hk'}">${r.source === 'tw' ? '🇹🇼 台灣拿金' : '🇭🇰 香港拿金'}</span>
+            ${r.sets > 1 ? `<span class="h-source-tag" style="background:#f3f4f6;color:#374151">${r.sets}套</span>` : ''}
+            ${r.runner ? `<span class="h-source-tag" style="background:#ede9fe;color:#5b21b6">👤${r.runner}</span>` : ''}
           </div>
           <div style="font-size:12px;color:var(--muted);margin-top:2px">${r.g}g ／ ${r.qian.toFixed(1)}錢</div>
         </div>
