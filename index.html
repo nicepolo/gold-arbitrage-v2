@@ -48,6 +48,8 @@ body {
   border-radius: 20px;
   font-size: 12px;
   font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* Tabs */
@@ -300,6 +302,20 @@ body {
 /* Divider */
 .divider { height: 1px; background: var(--border); margin: 4px 0; }
 
+/* Edit mode banner */
+.edit-banner {
+  display: none;
+  background: #fef3c7; border: 1.5px solid #fbbf24;
+  border-radius: var(--radius); padding: 10px 14px;
+  margin-bottom: 12px; font-size: 13px; font-weight: 600; color: #92400e;
+  display: none; align-items: center; justify-content: space-between;
+}
+.edit-banner.active { display: flex; }
+.btn-cancel-edit {
+  background: none; border: none; color: #92400e;
+  font-size: 13px; font-weight: 700; cursor: pointer; padding: 2px 6px;
+}
+
 /* Copy button */
 .btn-copy {
   width: 100%; padding: 12px;
@@ -328,6 +344,11 @@ body {
 
 <!-- ========== CALCULATOR ========== -->
 <div id="tab-calc" class="tab-content active">
+
+  <div class="edit-banner" id="editBanner">
+    <span>✏️ 編輯模式｜修改後按「更新記帳」</span>
+    <button class="btn-cancel-edit" onclick="cancelEdit()">✕ 取消</button>
+  </div>
 
   <div class="card">
     <div class="card-title">🏪 進貨地點</div>
@@ -500,7 +521,7 @@ body {
   </div>
 
   <button class="btn-copy" id="copyBtn" onclick="copyReport()">📋 一鍵複製摘要</button>
-  <button class="btn-save" onclick="saveRecord()">💾 儲存這筆記帳</button>
+  <button class="btn-save" id="saveBtn" onclick="saveOrUpdate()">💾 儲存這筆記帳</button>
 </div>
 
 <!-- ========== HISTORY ========== -->
@@ -545,6 +566,7 @@ const fmtShort = n => {
 let source = 'hk';      // 'hk' or 'tw'
 let hkMode = 'twd';     // 'twd' or 'usd'
 let usdtTwd = 31.8;     // auto-fetched USDT/TWD rate
+let editingId = null;   // ID of record being edited
 const OZ_PER_QIAN = 31.1035 / 3.75; // ~8.2943
 
 function setSource(s) {
@@ -691,6 +713,75 @@ function copyReport() {
   });
 }
 
+function editRecord(id) {
+  const records = JSON.parse(localStorage.getItem('goldBook') || '[]');
+  const r = records.find(x => x.id === id);
+  if (!r) return;
+
+  // Switch to calc tab
+  switchTab('calc');
+  editingId = id;
+
+  // Populate source
+  setSource(r.source || 'hk');
+
+  // Populate fields
+  if (r.source === 'hk') {
+    setHkMode('twd');
+    document.getElementById('hkPrice').value  = Math.round(r.hkP || 0);
+    document.getElementById('hkdRate').value  = r.hkd || 4.04;
+    document.getElementById('vndRate').value  = r.vnd;
+    document.getElementById('procRate').value = r.proc && r.g ? (r.proc / r.g / (r.hkd || 4.04)).toFixed(2) : 1.5;
+    document.getElementById('otherCost').value = r.oth || 0;
+  } else {
+    document.getElementById('twPrice').value    = Math.round(r.twP || 0);
+    document.getElementById('vndRateTW').value  = r.vnd;
+    document.getElementById('twOtherCost').value = r.oth || 0;
+  }
+  document.getElementById('vnPrice').value = r.vnP ? (r.vnP / 10000).toFixed(0) : 1498;
+  document.getElementById('grams').value   = r.g;
+  document.getElementById('sets').value    = r.sets || 1;
+  document.getElementById('runner').value  = r.runner || '';
+
+  // Show banner and update save button
+  document.getElementById('editBanner').classList.add('active');
+  document.getElementById('saveBtn').textContent = '✅ 更新記帳';
+  document.getElementById('saveBtn').style.background = '#16a34a';
+
+  calc();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function cancelEdit() {
+  editingId = null;
+  document.getElementById('editBanner').classList.remove('active');
+  document.getElementById('saveBtn').textContent = '💾 儲存這筆記帳';
+  document.getElementById('saveBtn').style.background = '#c9960a';
+}
+
+function saveOrUpdate() {
+  if (editingId !== null) {
+    // Update existing record
+    const d = calc();
+    let records = JSON.parse(localStorage.getItem('goldBook') || '[]');
+    const idx = records.findIndex(r => r.id === editingId);
+    if (idx !== -1) {
+      records[idx] = { ...records[idx], ...d,
+        hkd: +document.getElementById('hkdRate').value || 4.04 };
+    }
+    localStorage.setItem('goldBook', JSON.stringify(records));
+    cancelEdit();
+    switchTab('history');
+    const btn = document.getElementById('saveBtn');
+    btn.textContent = '✅ 更新記帳';
+    setTimeout(() => {
+      btn.textContent = '💾 儲存這筆記帳';
+    }, 1500);
+  } else {
+    saveRecord();
+  }
+}
+
 function toggleDetail(id) {
   const detail = document.getElementById('detail-' + id);
   const chev   = document.getElementById('chev-' + id);
@@ -783,6 +874,7 @@ function renderHistory() {
         <div class="h-right">
           <div class="h-profit ${r.profit>=0?'pos':'neg'}">${fmt(r.profit)}</div>
           <span class="h-chevron" id="chev-${r.id}">▼</span>
+          <button class="h-delete" style="color:#9ca3af;font-size:14px" onclick="event.stopPropagation();editRecord(${r.id})">✏️</button>
           <button class="h-delete" onclick="event.stopPropagation();deleteRecord(${r.id})">✕</button>
         </div>
       </div>
